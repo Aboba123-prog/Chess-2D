@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport"
+        content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <meta name="HandheldFriendly" content="true">
+    <meta name="theme-color" content="#0d0f13">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>2D Chess</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div id="app" class="app">
+
+        <header class="topbar">
+            <div class="brand">
+                <span class="brand-mark">♟</span>
+                <span class="brand-text">2D Chess</span>
+            </div>
+
+            <div class="top-actions">
+                <button id="newGameButton" class="top-button" type="button" aria-label="Новая игра">
+                    <i class="fa fa-plus"></i>
+                    <span>Новая игра</span>
+                </button>
+
+                <button id="settingsButton" class="settings-button" type="button" aria-label="Настройки"
+                    title="Настройки">
+                    <i class="fa fa-cog"></i>
+                </button>
+            </div>
+        </header>
+
+        <main class="main">
+
+            <section class="game-area">
+
+                <div id="status" class="status">
+                    <span id="statusText">Ход белых</span>
+                </div>
+
+                <div id="boardViewport" class="board-viewport">
+
+                    <div id="boardScene" class="board-scene">
+                        <div id="board" class="board"></div>
+                    </div>
+
+                </div>
+
+                <div id="gameActions" class="game-actions">
+
+                    <button id="undoButton" class="action-button" type="button">
+                        <i class="fa fa-undo"></i>
+                        <span>Отменить</span>
+                    </button>
+
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div id="settingsOverlay" class="overlay hidden">
+
+        <div class="settings-modal">
+
+            <div class="modal-header">
+
+                <div class="modal-title">
+                    <i class="fa fa-cog"></i>
+                    <span>Настройки</span>
+                </div>
+
+                <button id="closeSettingsButton" class="close-button" type="button" aria-label="Закрыть">
+                    <i class="fa fa-times"></i>
+                </button>
+
+            </div>
+
+            <div class="settings-section">
+
+                <div class="section-title">Режим игры</div>
+
+                <button id="modalAiMode" class="mode-button active" type="button">
+                    <span class="mode-icon">🤖</span>
+                    <span>Игра против ИИ</span>
+                </button>
+
+                <button id="modalTwoMode" class="mode-button" type="button">
+                    <span class="mode-icon">👥</span>
+                    <span>Два игрока</span>
+                </button>
+
+            </div>
+
+            <div id="difficultySection" class="settings-section">
+
+                <div class="section-title">Сила ИИ</div>
+
+                <select id="difficultySelect">
+                    <option value="1">1 — Новичок</option>
+                    <option value="2">2 — Лёгкий</option>
+                    <option value="3" selected>3 — Средний</option>
+                    <option value="4">4 — Продвинутый</option>
+                    <option value="5">5 — Сильный</option>
+                </select>
+
+                <div class="difficulty-info">
+                    <div>1 — мгновенный</div>
+                    <div>2 — лёгкий</div>
+                    <div>3 — средний</div>
+                    <div>4 — глубокий</div>
+                    <div>5 — максимальный поиск устройства</div>
+                </div>
+
+            </div>
+
+            <div class="settings-section">
+
+                <div class="section-title">Анимации</div>
+
+                <button id="animationToggle" class="switch-row" type="button">
+
+                    <span class="switch-label">
+                        <i class="fa fa-magic"></i>
+                        <span>Красивые анимации</span>
+                    </span>
+
+                    <span id="animationSwitch" class="switch">
+                        <span class="switch-knob"></span>
+                    </span>
+
+                </button>
+
+                <div id="animationHint" class="settings-hint"></div>
+
+            </div>
+
+            <div class="settings-section">
+
+                <div class="section-title">Поведение доски</div>
+
+                <div class="info-row">
+                    <span>ПК + 2 игрока</span>
+                    <span>Плавный автоповорот</span>
+                </div>
+
+                <div class="info-row">
+                    <span>Телефон</span>
+                    <span>Фиксированная ориентация</span>
+                </div>
+
+                <div class="info-row">
+                    <span>Z Fold</span>
+                    <span>Фиксированная ориентация</span>
+                </div>
+
+                <div class="info-row">
+                    <span>Планшет</span>
+                    <span>Фиксированная ориентация</span>
+                </div>
+
+                <div class="info-row">
+                    <span>LG webOS</span>
+                    <span>Фиксированная ориентация</span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="promotionOverlay" class="overlay hidden">
+
+        <div class="promotion-modal">
+
+            <div class="promotion-title">
+                Превращение пешки
+            </div>
+
+            <div class="promotion-buttons">
+
+                <button type="button" data-promotion="q">♕</button>
+                <button type="button" data-promotion="r">♖</button>
+                <button type="button" data-promotion="b">♗</button>
+                <button type="button" data-promotion="n">♘</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
