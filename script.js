@@ -5,28 +5,21 @@
     var boardViewport = document.getElementById("boardViewport");
     var boardScene = document.getElementById("boardScene");
     var board = document.getElementById("board");
-
     var status = document.getElementById("status");
     var statusText = document.getElementById("statusText");
     var gameActions = document.getElementById("gameActions");
-
     var newGameButton = document.getElementById("newGameButton");
     var undoButton = document.getElementById("undoButton");
-
     var settingsButton = document.getElementById("settingsButton");
     var settingsOverlay = document.getElementById("settingsOverlay");
     var closeSettingsButton = document.getElementById("closeSettingsButton");
-
     var modalAiMode = document.getElementById("modalAiMode");
     var modalTwoMode = document.getElementById("modalTwoMode");
-
     var difficultySection = document.getElementById("difficultySection");
     var difficultySelect = document.getElementById("difficultySelect");
-
     var animationToggle = document.getElementById("animationToggle");
     var animationSwitch = document.getElementById("animationSwitch");
     var animationHint = document.getElementById("animationHint");
-
     var promotionOverlay = document.getElementById("promotionOverlay");
 
     var PIECES = {
@@ -123,40 +116,78 @@
     var state = createInitialState();
     var history = [];
     var positionHistory = {};
-
+    var cells = [];
+    var pieceNodes = [];
+    var rankNodes = [];
+    var fileNodes = [];
+    var targetFlags = [];
     var selected = -1;
+    var cursor = -1;
     var legalTargets = [];
     var pendingPromotion = null;
-
     var boardBlack = false;
     var gameMode = "ai";
-
     var aiThinking = false;
     var aiTimer = 0;
     var searchDeadline = 0;
-
     var orientationTimer = 0;
+    var resizeTimer = 0;
+    var resizeFrame = 0;
     var animationEnabled = true;
+    var lastRenderedResult = null;
+    var modernLayout = false;
+    var pointerEvents = false;
+
+    function detectFeatures() {
+        var css = window.CSS;
+        var supports = css && typeof css.supports === "function";
+
+        modernLayout = !!(
+            supports &&
+            css.supports("display", "grid") &&
+            css.supports("aspect-ratio", "1 / 1")
+        );
+
+        pointerEvents =
+            typeof window.PointerEvent === "function";
+    }
+
+    function applyAppClass() {
+        var classes =
+            modernLayout
+                ? "app modern-layout"
+                : "app legacy-layout";
+
+        if (!animationEnabled) {
+            classes += " no-animations";
+        }
+
+        app.className = classes;
+    }
+
+    detectFeatures();
 
     try {
         if (
             window.localStorage &&
-            localStorage.getItem("2dchess.animations") === "0"
+            localStorage.getItem(
+                "2dchess.animations"
+            ) === "0"
         ) {
             animationEnabled = false;
         }
-    } catch (e) {
-    }
+    } catch (e) { }
 
     try {
         if (
             window.matchMedia &&
-            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            window.matchMedia(
+                "(prefers-reduced-motion: reduce)"
+            ).matches
         ) {
             animationEnabled = false;
         }
-    } catch (e2) {
-    }
+    } catch (e2) { }
 
     function createInitialState() {
         return {
@@ -197,19 +228,21 @@
             ep: s.ep,
             halfmove: s.halfmove,
             fullmove: s.fullmove,
-            last: s.last ? {
-                from: s.last.from,
-                to: s.last.to
-            } : null
+            last: s.last
+                ? {
+                    from: s.last.from,
+                    to: s.last.to
+                }
+                : null
         };
     }
 
-    function row(index) {
-        return Math.floor(index / 8);
+    function row(i) {
+        return Math.floor(i / 8);
     }
 
-    function col(index) {
-        return index % 8;
+    function col(i) {
+        return i % 8;
     }
 
     function index(r, c) {
@@ -217,7 +250,10 @@
     }
 
     function inside(r, c) {
-        return r >= 0 && r < 8 && c >= 0 && c < 8;
+        return r >= 0 &&
+            r < 8 &&
+            c >= 0 &&
+            c < 8;
     }
 
     function colorOf(piece) {
@@ -235,19 +271,25 @@
     }
 
     function opposite(color) {
-        return color === "w" ? "b" : "w";
+        return color === "w"
+            ? "b"
+            : "w";
     }
 
     function isTV() {
-        var ua = navigator.userAgent || "";
+        var ua =
+            navigator.userAgent || "";
 
-        return /web0s|webos|netcast|smarttv|hbbtv|viera|tizen.*tv|googletv|google tv/i.test(ua);
+        return /web0s|webos|netcast|smarttv|hbbtv|viera|tizen.*tv|googletv|google tv|aftb|aftm|android tv/i.test(
+            ua
+        );
     }
 
     function isTouchDevice() {
         return (
             "ontouchstart" in window ||
-            navigator.maxTouchPoints > 0
+            navigator.maxTouchPoints > 0 ||
+            navigator.msMaxTouchPoints > 0
         );
     }
 
@@ -255,49 +297,249 @@
         return (
             !isTV() &&
             !isTouchDevice() &&
-            window.innerWidth >= 900
+            getViewportWidth() >= 900
         );
+    }
+
+    function usePCStyle() {
+        return isTV() || isDesktop();
     }
 
     function shouldAutoFlip() {
         return (
-            isDesktop() &&
-            gameMode === "two"
+            gameMode === "two" &&
+            usePCStyle()
         );
     }
 
-    function updateAnimationUI() {
-        if (animationEnabled) {
-            app.className = "app";
-            animationSwitch.className = "switch on";
-            animationHint.innerHTML =
-                "Анимации включены. Их можно отключить для минимальной нагрузки.";
+    function getViewportWidth() {
+        return (
+            window.innerWidth ||
+            document.documentElement.clientWidth ||
+            320
+        );
+    }
+
+    function getViewportHeight() {
+        return (
+            window.innerHeight ||
+            document.documentElement.clientHeight ||
+            480
+        );
+    }
+
+    function getBoardSize() {
+        var width = getViewportWidth();
+        var height = getViewportHeight();
+
+        var horizontal =
+            width <= 360
+                ? 10
+                : width <= 600
+                    ? 14
+                    : width <= 900
+                        ? 20
+                        : 28;
+
+        var availableWidth =
+            Math.max(
+                180,
+                width - horizontal
+            );
+
+        var landscape =
+            width > height;
+
+        var size;
+
+        if (!landscape) {
+            size =
+                Math.min(
+                    760,
+                    availableWidth
+                );
         } else {
-            app.className = "app no-animations";
-            animationSwitch.className = "switch";
-            animationHint.innerHTML =
-                "Анимации выключены.";
+            var topbar =
+                document.querySelector(
+                    ".topbar"
+                );
+
+            var topbarHeight =
+                topbar
+                    ? topbar.offsetHeight
+                    : 40;
+
+            var availableHeight =
+                height -
+                topbarHeight -
+                36 -
+                38 -
+                22;
+
+            size =
+                Math.min(
+                    760,
+                    availableWidth,
+                    Math.max(
+                        180,
+                        availableHeight
+                    )
+                );
         }
+
+        return Math.max(
+            180,
+            Math.floor(size)
+        );
+    }
+
+    function resizeBoard() {
+        resizeTimer = 0;
+        resizeFrame = 0;
+
+        if (modernLayout) {
+            boardScene.style.width = "";
+            boardScene.style.height = "";
+            status.style.width = "";
+            gameActions.style.width = "";
+            return;
+        }
+
+        var size =
+            getBoardSize();
+
+        if (!size) {
+            return;
+        }
+
+        boardScene.style.width =
+            size + "px";
+
+        boardScene.style.height =
+            size + "px";
+
+        status.style.width =
+            size + "px";
+
+        gameActions.style.width =
+            size + "px";
+
+        var fontSize =
+            Math.max(
+                20,
+                Math.floor(
+                    (size / 8) * .84
+                )
+            );
+
+        var i;
+
+        for (
+            i = 0;
+            i < pieceNodes.length;
+            i++
+        ) {
+            pieceNodes[i].style.fontSize =
+                fontSize + "px";
+        }
+
+        var coordSize =
+            size <= 420
+                ? 7
+                : 9;
+
+        for (
+            i = 0;
+            i < rankNodes.length;
+            i++
+        ) {
+            rankNodes[i].style.fontSize =
+                coordSize + "px";
+
+            fileNodes[i].style.fontSize =
+                coordSize + "px";
+        }
+    }
+
+    function scheduleResize() {
+        if (resizeTimer) {
+            clearTimeout(
+                resizeTimer
+            );
+        }
+
+        if (
+            resizeFrame &&
+            window.cancelAnimationFrame
+        ) {
+            window.cancelAnimationFrame(
+                resizeFrame
+            );
+
+            resizeFrame = 0;
+        }
+
+        if (
+            modernLayout &&
+            window.requestAnimationFrame
+        ) {
+            resizeFrame =
+                window.requestAnimationFrame(
+                    function () {
+                        resizeFrame = 0;
+                        resizeBoard();
+                    }
+                );
+        } else {
+            resizeTimer =
+                setTimeout(
+                    resizeBoard,
+                    35
+                );
+        }
+    }
+
+    function updateAnimationUI() {
+        applyAppClass();
+
+        animationSwitch.className =
+            animationEnabled
+                ? "switch on"
+                : "switch";
+
+        animationHint.innerHTML =
+            animationEnabled
+                ? "Включены плавные анимации."
+                : "Анимации отключены для минимальной нагрузки.";
     }
 
     function saveAnimationSetting() {
         try {
             localStorage.setItem(
                 "2dchess.animations",
-                animationEnabled ? "1" : "0"
+                animationEnabled
+                    ? "1"
+                    : "0"
             );
-        } catch (e) {
-        }
+        } catch (e) { }
     }
 
     function findKing(s, color) {
         var target =
-            color === "w" ? "K" : "k";
+            color === "w"
+                ? "K"
+                : "k";
 
         var i;
 
-        for (i = 0; i < 64; i++) {
-            if (s.board[i] === target) {
+        for (
+            i = 0;
+            i < 64;
+            i++
+        ) {
+            if (
+                s.board[i] === target
+            ) {
                 return i;
             }
         }
@@ -305,42 +547,76 @@
         return -1;
     }
 
-    function squareAttacked(s, square, byColor) {
-        var r = row(square);
-        var c = col(square);
+    function squareAttacked(
+        s,
+        square,
+        byColor
+    ) {
+        var r =
+            row(square);
+
+        var c =
+            col(square);
+
         var rr;
         var cc;
         var i;
         var piece;
 
         var pawn =
-            byColor === "w" ? "P" : "p";
+            byColor === "w"
+                ? "P"
+                : "p";
 
         var pawnRow =
-            byColor === "w" ? r + 1 : r - 1;
+            byColor === "w"
+                ? r + 1
+                : r - 1;
 
         if (
-            inside(pawnRow, c - 1) &&
-            s.board[index(pawnRow, c - 1)] === pawn
+            inside(
+                pawnRow,
+                c - 1
+            ) &&
+            s.board[
+            index(
+                pawnRow,
+                c - 1
+            )
+            ] === pawn
         ) {
             return true;
         }
 
         if (
-            inside(pawnRow, c + 1) &&
-            s.board[index(pawnRow, c + 1)] === pawn
+            inside(
+                pawnRow,
+                c + 1
+            ) &&
+            s.board[
+            index(
+                pawnRow,
+                c + 1
+            )
+            ] === pawn
         ) {
             return true;
         }
 
         var knight =
-            byColor === "w" ? "N" : "n";
+            byColor === "w"
+                ? "N"
+                : "n";
 
         var knightDirections = [
-            [-2, -1], [-2, 1],
-            [-1, -2], [-1, 2],
-            [1, -2], [1, 2],
-            [2, -1], [2, 1]
+            [-2, -1],
+            [-2, 1],
+            [-1, -2],
+            [-1, 2],
+            [1, -2],
+            [1, 2],
+            [2, -1],
+            [2, 1]
         ];
 
         for (
@@ -348,37 +624,56 @@
             i < knightDirections.length;
             i++
         ) {
-            rr = r + knightDirections[i][0];
-            cc = c + knightDirections[i][1];
+            rr =
+                r +
+                knightDirections[i][0];
+
+            cc =
+                c +
+                knightDirections[i][1];
 
             if (
                 inside(rr, cc) &&
-                s.board[index(rr, cc)] === knight
+                s.board[
+                index(rr, cc)
+                ] === knight
             ) {
                 return true;
             }
         }
 
         var bishop =
-            byColor === "w" ? "B" : "b";
+            byColor === "w"
+                ? "B"
+                : "b";
 
         var rook =
-            byColor === "w" ? "R" : "r";
+            byColor === "w"
+                ? "R"
+                : "r";
 
         var queen =
-            byColor === "w" ? "Q" : "q";
+            byColor === "w"
+                ? "Q"
+                : "q";
 
         var king =
-            byColor === "w" ? "K" : "k";
+            byColor === "w"
+                ? "K"
+                : "k";
 
         var diagonal = [
-            [-1, -1], [-1, 1],
-            [1, -1], [1, 1]
+            [-1, -1],
+            [-1, 1],
+            [1, -1],
+            [1, 1]
         ];
 
         var straight = [
-            [-1, 0], [1, 0],
-            [0, -1], [0, 1]
+            [-1, 0],
+            [1, 0],
+            [0, -1],
+            [0, 1]
         ];
 
         for (
@@ -394,9 +689,13 @@
                 c +
                 diagonal[i][1];
 
-            while (inside(rr, cc)) {
+            while (
+                inside(rr, cc)
+            ) {
                 piece =
-                    s.board[index(rr, cc)];
+                    s.board[
+                    index(rr, cc)
+                    ];
 
                 if (piece !== ".") {
                     if (
@@ -409,8 +708,11 @@
                     break;
                 }
 
-                rr += diagonal[i][0];
-                cc += diagonal[i][1];
+                rr +=
+                    diagonal[i][0];
+
+                cc +=
+                    diagonal[i][1];
             }
         }
 
@@ -427,9 +729,13 @@
                 c +
                 straight[i][1];
 
-            while (inside(rr, cc)) {
+            while (
+                inside(rr, cc)
+            ) {
                 piece =
-                    s.board[index(rr, cc)];
+                    s.board[
+                    index(rr, cc)
+                    ];
 
                 if (piece !== ".") {
                     if (
@@ -442,8 +748,11 @@
                     break;
                 }
 
-                rr += straight[i][0];
-                cc += straight[i][1];
+                rr +=
+                    straight[i][0];
+
+                cc +=
+                    straight[i][1];
             }
         }
 
@@ -459,8 +768,13 @@
             ) {
                 if (
                     inside(rr, cc) &&
-                    !(rr === r && cc === c) &&
-                    s.board[index(rr, cc)] === king
+                    !(
+                        rr === r &&
+                        cc === c
+                    ) &&
+                    s.board[
+                    index(rr, cc)
+                    ] === king
                 ) {
                     return true;
                 }
@@ -470,18 +784,23 @@
         return false;
     }
 
-    function inCheck(s, color) {
+    function inCheck(
+        s,
+        color
+    ) {
         var king =
-            findKing(s, color);
+            findKing(
+                s,
+                color
+            );
 
-        if (king < 0) {
-            return true;
-        }
-
-        return squareAttacked(
-            s,
-            king,
-            opposite(color)
+        return (
+            king < 0 ||
+            squareAttacked(
+                s,
+                king,
+                opposite(color)
+            )
         );
     }
 
@@ -495,22 +814,68 @@
             from: from,
             to: to,
             promotion:
-                options && options.promotion
+                options &&
+                    options.promotion
                     ? options.promotion
                     : null,
             castle:
-                options && options.castle
+                options &&
+                    options.castle
                     ? options.castle
                     : null,
-            enPassant:
-                !!(
-                    options &&
-                    options.enPassant
-                )
+            enPassant: !!(
+                options &&
+                options.enPassant
+            )
         });
     }
 
-    function generatePseudoMoves(s, color) {
+    function addPromotions(
+        list,
+        from,
+        to
+    ) {
+        addMove(
+            list,
+            from,
+            to,
+            {
+                promotion: "q"
+            }
+        );
+
+        addMove(
+            list,
+            from,
+            to,
+            {
+                promotion: "r"
+            }
+        );
+
+        addMove(
+            list,
+            from,
+            to,
+            {
+                promotion: "b"
+            }
+        );
+
+        addMove(
+            list,
+            from,
+            to,
+            {
+                promotion: "n"
+            }
+        );
+    }
+
+    function generatePseudoMoves(
+        s,
+        color
+    ) {
         var moves = [];
         var b = s.board;
 
@@ -523,8 +888,13 @@
         var cc;
         var target;
 
-        for (i = 0; i < 64; i++) {
-            piece = b[i];
+        for (
+            i = 0;
+            i < 64;
+            i++
+        ) {
+            piece =
+                b[i];
 
             if (
                 piece === "." ||
@@ -533,67 +903,70 @@
                 continue;
             }
 
-            type = typeOf(piece);
-            r = row(i);
-            c = col(i);
+            type =
+                typeOf(piece);
+
+            r =
+                row(i);
+
+            c =
+                col(i);
 
             if (type === "p") {
                 var direction =
-                    color === "w" ? -1 : 1;
+                    color === "w"
+                        ? -1
+                        : 1;
 
                 var startRow =
-                    color === "w" ? 6 : 1;
+                    color === "w"
+                        ? 6
+                        : 1;
 
                 var promotionRow =
-                    color === "w" ? 0 : 7;
+                    color === "w"
+                        ? 0
+                        : 7;
 
                 rr =
                     r + direction;
 
                 if (
                     inside(rr, c) &&
-                    b[index(rr, c)] === "."
+                    b[
+                    index(
+                        rr,
+                        c
+                    )
+                    ] === "."
                 ) {
-                    if (rr === promotionRow) {
-                        addMove(
+                    if (
+                        rr === promotionRow
+                    ) {
+                        addPromotions(
                             moves,
                             i,
-                            index(rr, c),
-                            { promotion: "q" }
-                        );
-
-                        addMove(
-                            moves,
-                            i,
-                            index(rr, c),
-                            { promotion: "r" }
-                        );
-
-                        addMove(
-                            moves,
-                            i,
-                            index(rr, c),
-                            { promotion: "b" }
-                        );
-
-                        addMove(
-                            moves,
-                            i,
-                            index(rr, c),
-                            { promotion: "n" }
+                            index(
+                                rr,
+                                c
+                            )
                         );
                     } else {
                         addMove(
                             moves,
                             i,
-                            index(rr, c)
+                            index(
+                                rr,
+                                c
+                            )
                         );
 
                         if (
                             r === startRow &&
                             b[
                             index(
-                                r + direction * 2,
+                                r +
+                                direction * 2,
                                 c
                             )
                             ] === "."
@@ -602,7 +975,8 @@
                                 moves,
                                 i,
                                 index(
-                                    r + direction * 2,
+                                    r +
+                                    direction * 2,
                                     c
                                 )
                             );
@@ -623,62 +997,70 @@
                     cc =
                         c + dc;
 
-                    if (!inside(rr, cc)) {
+                    if (
+                        !inside(
+                            rr,
+                            cc
+                        )
+                    ) {
                         continue;
                     }
 
                     target =
-                        b[index(rr, cc)];
+                        b[
+                        index(
+                            rr,
+                            cc
+                        )
+                        ];
 
                     if (
                         target !== "." &&
-                        colorOf(target) === opposite(color)
+                        colorOf(
+                            target
+                        ) ===
+                        opposite(color)
                     ) {
-                        if (rr === promotionRow) {
-                            addMove(
+                        if (
+                            rr === promotionRow
+                        ) {
+                            addPromotions(
                                 moves,
                                 i,
-                                index(rr, cc),
-                                { promotion: "q" }
-                            );
-
-                            addMove(
-                                moves,
-                                i,
-                                index(rr, cc),
-                                { promotion: "r" }
-                            );
-
-                            addMove(
-                                moves,
-                                i,
-                                index(rr, cc),
-                                { promotion: "b" }
-                            );
-
-                            addMove(
-                                moves,
-                                i,
-                                index(rr, cc),
-                                { promotion: "n" }
+                                index(
+                                    rr,
+                                    cc
+                                )
                             );
                         } else {
                             addMove(
                                 moves,
                                 i,
-                                index(rr, cc)
+                                index(
+                                    rr,
+                                    cc
+                                )
                             );
                         }
                     }
 
                     if (
-                        index(rr, cc) === s.ep
+                        index(
+                            rr,
+                            cc
+                        ) === s.ep
                     ) {
                         addMove(
                             moves,
                             i,
-                            index(rr, cc),
-                            { enPassant: true }
+                            index(
+                                rr,
+                                cc
+                            ),
+                            {
+                                enPassant:
+                                    true
+                            }
                         );
                     }
                 }
@@ -686,10 +1068,14 @@
 
             if (type === "n") {
                 var knightDirections = [
-                    [-2, -1], [-2, 1],
-                    [-1, -2], [-1, 2],
-                    [1, -2], [1, 2],
-                    [2, -1], [2, 1]
+                    [-2, -1],
+                    [-2, 1],
+                    [-1, -2],
+                    [-1, 2],
+                    [1, -2],
+                    [1, 2],
+                    [2, -1],
+                    [2, 1]
                 ];
 
                 var ni;
@@ -707,12 +1093,19 @@
                         c +
                         knightDirections[ni][1];
 
-                    if (!inside(rr, cc)) {
+                    if (
+                        !inside(rr, cc)
+                    ) {
                         continue;
                     }
 
                     target =
-                        b[index(rr, cc)];
+                        b[
+                        index(
+                            rr,
+                            cc
+                        )
+                        ];
 
                     if (
                         target === "." ||
@@ -721,7 +1114,10 @@
                         addMove(
                             moves,
                             i,
-                            index(rr, cc)
+                            index(
+                                rr,
+                                cc
+                            )
                         );
                     }
                 }
@@ -733,6 +1129,7 @@
                 type === "q"
             ) {
                 var directions = [];
+                var di;
 
                 if (
                     type === "b" ||
@@ -740,8 +1137,10 @@
                 ) {
                     directions =
                         directions.concat([
-                            [-1, -1], [-1, 1],
-                            [1, -1], [1, 1]
+                            [-1, -1],
+                            [-1, 1],
+                            [1, -1],
+                            [1, 1]
                         ]);
                 }
 
@@ -751,12 +1150,12 @@
                 ) {
                     directions =
                         directions.concat([
-                            [-1, 0], [1, 0],
-                            [0, -1], [0, 1]
+                            [-1, 0],
+                            [1, 0],
+                            [0, -1],
+                            [0, 1]
                         ]);
                 }
-
-                var di;
 
                 for (
                     di = 0;
@@ -771,32 +1170,51 @@
                         c +
                         directions[di][1];
 
-                    while (inside(rr, cc)) {
+                    while (
+                        inside(rr, cc)
+                    ) {
                         target =
-                            b[index(rr, cc)];
+                            b[
+                            index(
+                                rr,
+                                cc
+                            )
+                            ];
 
-                        if (target === ".") {
+                        if (
+                            target === "."
+                        ) {
                             addMove(
                                 moves,
                                 i,
-                                index(rr, cc)
+                                index(
+                                    rr,
+                                    cc
+                                )
                             );
                         } else {
                             if (
-                                colorOf(target) !== color
+                                colorOf(target) !==
+                                color
                             ) {
                                 addMove(
                                     moves,
                                     i,
-                                    index(rr, cc)
+                                    index(
+                                        rr,
+                                        cc
+                                    )
                                 );
                             }
 
                             break;
                         }
 
-                        rr += directions[di][0];
-                        cc += directions[di][1];
+                        rr +=
+                            directions[di][0];
+
+                        cc +=
+                            directions[di][1];
                     }
                 }
             }
@@ -823,7 +1241,12 @@
                         }
 
                         target =
-                            b[index(rr, cc)];
+                            b[
+                            index(
+                                rr,
+                                cc
+                            )
+                            ];
 
                         if (
                             target === "." ||
@@ -832,7 +1255,10 @@
                             addMove(
                                 moves,
                                 i,
-                                index(rr, cc)
+                                index(
+                                    rr,
+                                    cc
+                                )
                             );
                         }
                     }
@@ -848,14 +1274,24 @@
                         b[61] === "." &&
                         b[62] === "." &&
                         b[63] === "R" &&
-                        !squareAttacked(s, 61, "b") &&
-                        !squareAttacked(s, 62, "b")
+                        !squareAttacked(
+                            s,
+                            61,
+                            "b"
+                        ) &&
+                        !squareAttacked(
+                            s,
+                            62,
+                            "b"
+                        )
                     ) {
                         addMove(
                             moves,
                             60,
                             62,
-                            { castle: "K" }
+                            {
+                                castle: "K"
+                            }
                         );
                     }
 
@@ -865,14 +1301,24 @@
                         b[58] === "." &&
                         b[57] === "." &&
                         b[56] === "R" &&
-                        !squareAttacked(s, 59, "b") &&
-                        !squareAttacked(s, 58, "b")
+                        !squareAttacked(
+                            s,
+                            59,
+                            "b"
+                        ) &&
+                        !squareAttacked(
+                            s,
+                            58,
+                            "b"
+                        )
                     ) {
                         addMove(
                             moves,
                             60,
                             58,
-                            { castle: "Q" }
+                            {
+                                castle: "Q"
+                            }
                         );
                     }
                 }
@@ -887,14 +1333,24 @@
                         b[5] === "." &&
                         b[6] === "." &&
                         b[7] === "r" &&
-                        !squareAttacked(s, 5, "w") &&
-                        !squareAttacked(s, 6, "w")
+                        !squareAttacked(
+                            s,
+                            5,
+                            "w"
+                        ) &&
+                        !squareAttacked(
+                            s,
+                            6,
+                            "w"
+                        )
                     ) {
                         addMove(
                             moves,
                             4,
                             6,
-                            { castle: "k" }
+                            {
+                                castle: "k"
+                            }
                         );
                     }
 
@@ -904,14 +1360,24 @@
                         b[2] === "." &&
                         b[1] === "." &&
                         b[0] === "r" &&
-                        !squareAttacked(s, 3, "w") &&
-                        !squareAttacked(s, 2, "w")
+                        !squareAttacked(
+                            s,
+                            3,
+                            "w"
+                        ) &&
+                        !squareAttacked(
+                            s,
+                            2,
+                            "w"
+                        )
                     ) {
                         addMove(
                             moves,
                             4,
                             2,
-                            { castle: "q" }
+                            {
+                                castle: "q"
+                            }
                         );
                     }
                 }
@@ -921,59 +1387,87 @@
         return moves;
     }
 
-    function applyMove(s, move) {
+    function applyMove(
+        s,
+        move
+    ) {
         var next =
             cloneState(s);
 
         var piece =
-            next.board[move.from];
+            next.board[
+            move.from
+            ];
 
         var captured =
-            next.board[move.to];
+            next.board[
+            move.to
+            ];
 
         var color =
             colorOf(piece);
 
-        next.board[move.from] = ".";
+        next.board[
+            move.from
+        ] = ".";
 
-        if (move.enPassant) {
+        if (
+            move.enPassant
+        ) {
             var capturedPawnSquare =
                 color === "w"
                     ? move.to + 8
                     : move.to - 8;
 
             captured =
-                next.board[capturedPawnSquare];
+                next.board[
+                capturedPawnSquare
+                ];
 
-            next.board[capturedPawnSquare] = ".";
+            next.board[
+                capturedPawnSquare
+            ] = ".";
         }
 
-        next.board[move.to] =
-            piece;
+        next.board[
+            move.to
+        ] = piece;
 
-        if (move.promotion) {
-            next.board[move.to] =
+        if (
+            move.promotion
+        ) {
+            next.board[
+                move.to
+            ] =
                 color === "w"
                     ? move.promotion.toUpperCase()
-                    : move.promotion.toLowerCase();
+                    : move.promotion;
         }
 
-        if (move.castle === "K") {
+        if (
+            move.castle === "K"
+        ) {
             next.board[63] = ".";
             next.board[61] = "R";
         }
 
-        if (move.castle === "Q") {
+        if (
+            move.castle === "Q"
+        ) {
             next.board[56] = ".";
             next.board[59] = "R";
         }
 
-        if (move.castle === "k") {
+        if (
+            move.castle === "k"
+        ) {
             next.board[7] = ".";
             next.board[5] = "r";
         }
 
-        if (move.castle === "q") {
+        if (
+            move.castle === "q"
+        ) {
             next.board[0] = ".";
             next.board[3] = "r";
         }
@@ -988,19 +1482,31 @@
             next.castling.q = false;
         }
 
-        if (move.from === 63 || move.to === 63) {
+        if (
+            move.from === 63 ||
+            move.to === 63
+        ) {
             next.castling.K = false;
         }
 
-        if (move.from === 56 || move.to === 56) {
+        if (
+            move.from === 56 ||
+            move.to === 56
+        ) {
             next.castling.Q = false;
         }
 
-        if (move.from === 7 || move.to === 7) {
+        if (
+            move.from === 7 ||
+            move.to === 7
+        ) {
             next.castling.k = false;
         }
 
-        if (move.from === 0 || move.to === 0) {
+        if (
+            move.from === 0 ||
+            move.to === 0
+        ) {
             next.castling.q = false;
         }
 
@@ -1008,22 +1514,26 @@
 
         if (
             typeOf(piece) === "p" &&
-            Math.abs(move.to - move.from) === 16
+            Math.abs(
+                move.to - move.from
+            ) === 16
         ) {
             next.ep =
-                (move.to + move.from) / 2;
+                (
+                    move.to +
+                    move.from
+                ) / 2;
         }
+
+        next.halfmove =
+            typeOf(piece) === "p" ||
+                captured !== "."
+                ? 0
+                : next.halfmove + 1;
 
         if (
-            typeOf(piece) === "p" ||
-            captured !== "."
+            color === "b"
         ) {
-            next.halfmove = 0;
-        } else {
-            next.halfmove++;
-        }
-
-        if (color === "b") {
             next.fullmove++;
         }
 
@@ -1038,7 +1548,10 @@
         return next;
     }
 
-    function legalMoves(s, color) {
+    function legalMoves(
+        s,
+        color
+    ) {
         var pseudo =
             generatePseudoMoves(
                 s,
@@ -1060,7 +1573,12 @@
                     pseudo[i]
                 );
 
-            if (!inCheck(next, color)) {
+            if (
+                !inCheck(
+                    next,
+                    color
+                )
+            ) {
                 result.push(
                     pseudo[i]
                 );
@@ -1072,10 +1590,26 @@
 
     function positionKey(s) {
         var castling =
-            (s.castling.K ? "K" : "") +
-            (s.castling.Q ? "Q" : "") +
-            (s.castling.k ? "k" : "") +
-            (s.castling.q ? "q" : "");
+            (
+                s.castling.K
+                    ? "K"
+                    : ""
+            ) +
+            (
+                s.castling.Q
+                    ? "Q"
+                    : ""
+            ) +
+            (
+                s.castling.k
+                    ? "k"
+                    : ""
+            ) +
+            (
+                s.castling.q
+                    ? "q"
+                    : ""
+            );
 
         return (
             s.board.join("") +
@@ -1092,11 +1626,10 @@
         var key =
             positionKey(s);
 
-        if (positionHistory[key]) {
-            positionHistory[key]++;
-        } else {
-            positionHistory[key] = 1;
-        }
+        positionHistory[key] =
+            positionHistory[key]
+                ? positionHistory[key] + 1
+                : 1;
     }
 
     function rebuildPositionHistory() {
@@ -1114,7 +1647,9 @@
             );
         }
 
-        recordPosition(state);
+        recordPosition(
+            state
+        );
     }
 
     function insufficientMaterial(s) {
@@ -1146,24 +1681,34 @@
                 return false;
             }
 
-            pieces.push(piece);
+            pieces.push(
+                piece
+            );
 
             if (
                 typeOf(piece) === "b"
             ) {
-                bishops.push(i);
+                bishops.push(
+                    i
+                );
             }
         }
 
-        if (pieces.length === 0) {
+        if (
+            pieces.length === 0
+        ) {
             return true;
         }
 
         if (
             pieces.length === 1 &&
             (
-                typeOf(pieces[0]) === "n" ||
-                typeOf(pieces[0]) === "b"
+                typeOf(
+                    pieces[0]
+                ) === "n" ||
+                typeOf(
+                    pieces[0]
+                ) === "b"
             )
         ) {
             return true;
@@ -1171,18 +1716,30 @@
 
         if (
             pieces.length === 2 &&
-            typeOf(pieces[0]) === "b" &&
-            typeOf(pieces[1]) === "b"
+            typeOf(
+                pieces[0]
+            ) === "b" &&
+            typeOf(
+                pieces[1]
+            ) === "b"
         ) {
             return (
                 (
-                    row(bishops[0]) +
-                    col(bishops[0])
+                    row(
+                        bishops[0]
+                    ) +
+                    col(
+                        bishops[0]
+                    )
                 ) % 2
             ) === (
                     (
-                        row(bishops[1]) +
-                        col(bishops[1])
+                        row(
+                            bishops[1]
+                        ) +
+                        col(
+                            bishops[1]
+                        )
                     ) % 2
                 );
         }
@@ -1190,15 +1747,25 @@
         return false;
     }
 
-    function gameStatus(s, searchMode) {
+    function gameStatus(
+        s,
+        searchMode
+    ) {
         var legal =
             legalMoves(
                 s,
                 s.turn
             );
 
-        if (!legal.length) {
-            if (inCheck(s, s.turn)) {
+        if (
+            !legal.length
+        ) {
+            if (
+                inCheck(
+                    s,
+                    s.turn
+                )
+            ) {
                 return {
                     over: true,
                     result:
@@ -1243,7 +1810,9 @@
             };
         }
 
-        if (!searchMode) {
+        if (
+            !searchMode
+        ) {
             var key =
                 positionKey(s);
 
@@ -1286,7 +1855,9 @@
             piece =
                 s.board[i];
 
-            if (piece === ".") {
+            if (
+                piece === "."
+            ) {
                 continue;
             }
 
@@ -1301,73 +1872,109 @@
                     ? i
                     : 63 - i;
 
-            if (color === "w") {
+            if (
+                color === "w"
+            ) {
                 score +=
-                    VALUE[type];
-
-                if (PST[type]) {
-                    score +=
-                        PST[type][tableIndex];
-                }
+                    VALUE[type] +
+                    (
+                        PST[type]
+                            ? PST[type][tableIndex]
+                            : 0
+                    );
             } else {
                 score -=
-                    VALUE[type];
-
-                if (PST[type]) {
-                    score -=
-                        PST[type][tableIndex];
-                }
+                    VALUE[type] +
+                    (
+                        PST[type]
+                            ? PST[type][tableIndex]
+                            : 0
+                    );
             }
         }
 
         return score;
     }
 
-    function moveOrderingScore(s, move) {
+    function moveOrderingScore(
+        s,
+        move
+    ) {
         var moving =
-            s.board[move.from];
+            s.board[
+            move.from
+            ];
 
         var captured =
-            s.board[move.to];
+            s.board[
+            move.to
+            ];
 
         var score = 0;
 
-        if (move.enPassant) {
+        if (
+            move.enPassant
+        ) {
             captured =
                 s.turn === "w"
                     ? "p"
                     : "P";
         }
 
-        if (captured !== ".") {
+        if (
+            captured !== "."
+        ) {
             score +=
-                VALUE[typeOf(captured)] * 10;
-
-            score -=
-                VALUE[typeOf(moving)];
+                VALUE[
+                typeOf(
+                    captured
+                )
+                ] *
+                10 -
+                VALUE[
+                typeOf(
+                    moving
+                )
+                ];
         }
 
-        if (move.promotion) {
+        if (
+            move.promotion
+        ) {
             score +=
-                VALUE[move.promotion] + 800;
+                VALUE[
+                move.promotion
+                ] +
+                800;
         }
 
-        if (move.castle) {
+        if (
+            move.castle
+        ) {
             score += 50;
         }
 
         return score;
     }
 
-    function orderMoves(s, moves) {
+    function orderMoves(
+        s,
+        moves
+    ) {
         var ordered =
             moves.slice();
 
         ordered.sort(
             function (a, b) {
                 return (
-                    moveOrderingScore(s, b) -
-                    moveOrderingScore(s, a)
+                    moveOrderingScore(
+                        s,
+                        b
+                    ) -
+                    moveOrderingScore(
+                        s,
+                        a
+                    )
                 );
             }
         );
@@ -1388,35 +1995,39 @@
             throw "timeout";
         }
 
-        var terminal =
-            gameStatus(
+        var moves =
+            legalMoves(
                 s,
-                true
+                s.turn
             );
 
-        if (terminal.over) {
-            if (terminal.result === "1-0") {
-                return 1000000 + depth;
-            }
-
-            if (terminal.result === "0-1") {
-                return -1000000 - depth;
+        if (
+            !moves.length
+        ) {
+            if (
+                inCheck(
+                    s,
+                    s.turn
+                )
+            ) {
+                return s.turn === "w"
+                    ? -1000000 - depth
+                    : 1000000 + depth;
             }
 
             return 0;
         }
 
-        if (depth <= 0) {
+        if (
+            depth <= 0
+        ) {
             return evaluate(s);
         }
 
-        var moves =
+        moves =
             orderMoves(
                 s,
-                legalMoves(
-                    s,
-                    s.turn
-                )
+                moves
             );
 
         var maximizing =
@@ -1426,47 +2037,10 @@
         var child;
         var score;
 
-        if (maximizing) {
-            var best =
-                -Infinity;
-
-            for (
-                i = 0;
-                i < moves.length;
-                i++
-            ) {
-                child =
-                    applyMove(
-                        s,
-                        moves[i]
-                    );
-
-                score =
-                    search(
-                        child,
-                        depth - 1,
-                        alpha,
-                        beta
-                    );
-
-                if (score > best) {
-                    best = score;
-                }
-
-                if (best > alpha) {
-                    alpha = best;
-                }
-
-                if (beta <= alpha) {
-                    break;
-                }
-            }
-
-            return best;
-        }
-
-        var minimum =
-            Infinity;
+        var best =
+            maximizing
+                ? -Infinity
+                : Infinity;
 
         for (
             i = 0;
@@ -1487,65 +2061,125 @@
                     beta
                 );
 
-            if (score < minimum) {
-                minimum = score;
+            if (
+                maximizing
+            ) {
+                if (
+                    score > best
+                ) {
+                    best = score;
+                }
+
+                if (
+                    best > alpha
+                ) {
+                    alpha = best;
+                }
+            } else {
+                if (
+                    score < best
+                ) {
+                    best = score;
+                }
+
+                if (
+                    best < beta
+                ) {
+                    beta = best;
+                }
             }
 
-            if (minimum < beta) {
-                beta = minimum;
-            }
-
-            if (beta <= alpha) {
+            if (
+                beta <= alpha
+            ) {
                 break;
             }
         }
 
-        return minimum;
+        return best;
     }
 
     function aiConfig(level) {
-        if (level === 1) {
+        var oldDevice = false;
+
+        try {
+            oldDevice =
+                (
+                    navigator.hardwareConcurrency &&
+                    navigator.hardwareConcurrency <= 2
+                ) ||
+                /iPhone|iPad|iPod|Android/i.test(
+                    navigator.userAgent || ""
+                );
+        } catch (e) { }
+
+        if (
+            level === 1
+        ) {
             return {
                 maxDepth: 1,
-                time: 70
+                time: 55
             };
         }
 
-        if (level === 2) {
+        if (
+            level === 2
+        ) {
             return {
                 maxDepth: 2,
-                time: 180
+                time:
+                    oldDevice
+                        ? 120
+                        : 160
             };
         }
 
-        if (level === 3) {
+        if (
+            level === 3
+        ) {
             return {
                 maxDepth: 3,
-                time: 500
+                time:
+                    oldDevice
+                        ? 300
+                        : 420
             };
         }
 
-        if (level === 4) {
+        if (
+            level === 4
+        ) {
             return {
                 maxDepth: 4,
-                time: 1100
+                time:
+                    oldDevice
+                        ? 700
+                        : 900
             };
         }
 
         return {
             maxDepth: 5,
-            time: 1900
+            time:
+                oldDevice
+                    ? 1050
+                    : 1350
         };
     }
 
-    function chooseAIMove(s, level) {
+    function chooseAIMove(
+        s,
+        level
+    ) {
         var legal =
             legalMoves(
                 s,
                 s.turn
             );
 
-        if (!legal.length) {
+        if (
+            !legal.length
+        ) {
             return null;
         }
 
@@ -1568,7 +2202,8 @@
         var depth = 1;
 
         while (
-            depth <= config.maxDepth
+            depth <=
+            config.maxDepth
         ) {
             try {
                 var currentBest =
@@ -1580,19 +2215,21 @@
                         : Infinity;
 
                 var i;
+                var child;
+                var score;
 
                 for (
                     i = 0;
                     i < ordered.length;
                     i++
                 ) {
-                    var child =
+                    child =
                         applyMove(
                             s,
                             ordered[i]
                         );
 
-                    var score =
+                    score =
                         search(
                             child,
                             depth - 1,
@@ -1600,22 +2237,28 @@
                             Infinity
                         );
 
-                    if (s.turn === "w") {
-                        if (score > currentScore) {
+                    if (
+                        s.turn === "w"
+                    ) {
+                        if (
+                            score >
+                            currentScore
+                        ) {
                             currentScore =
                                 score;
 
                             currentBest =
                                 ordered[i];
                         }
-                    } else {
-                        if (score < currentScore) {
-                            currentScore =
-                                score;
+                    } else if (
+                        score <
+                        currentScore
+                    ) {
+                        currentScore =
+                            score;
 
-                            currentBest =
-                                ordered[i];
-                        }
+                        currentBest =
+                            ordered[i];
                     }
                 }
 
@@ -1631,185 +2274,229 @@
         return bestMove;
     }
 
-    function getViewportWidth() {
-        if (
-            window.visualViewport &&
-            window.visualViewport.width
+    function buildBoard() {
+        var r;
+        var c;
+        var sq;
+        var cell;
+        var pieceNode;
+        var rankNode;
+        var fileNode;
+
+        board.innerHTML = "";
+
+        cells = [];
+        pieceNodes = [];
+        rankNodes = [];
+        fileNodes = [];
+        targetFlags = [];
+
+        for (
+            sq = 0;
+            sq < 64;
+            sq++
         ) {
-            return window.visualViewport.width;
+            targetFlags[sq] =
+                false;
         }
 
-        return (
-            window.innerWidth ||
-            document.documentElement.clientWidth ||
-            320
-        );
+        for (
+            r = 0;
+            r < 8;
+            r++
+        ) {
+            for (
+                c = 0;
+                c < 8;
+                c++
+            ) {
+                sq =
+                    index(
+                        r,
+                        c
+                    );
+
+                cell =
+                    document.createElement(
+                        "div"
+                    );
+
+                cell.className =
+                    "square " +
+                    (
+                        (
+                            r + c
+                        ) % 2 === 0
+                            ? "light"
+                            : "dark"
+                    );
+
+                cell.setAttribute(
+                    "data-square",
+                    sq
+                );
+
+                if (
+                    !modernLayout
+                ) {
+                    cell.style.left =
+                        (c * 12.5) +
+                        "%";
+
+                    cell.style.top =
+                        (r * 12.5) +
+                        "%";
+
+                    cell.style.width =
+                        "12.5%";
+
+                    cell.style.height =
+                        "12.5%";
+                }
+
+                pieceNode =
+                    document.createElement(
+                        "span"
+                    );
+
+                pieceNode.className =
+                    "piece";
+
+                pieceNode.style.display =
+                    "none";
+
+                cell.appendChild(
+                    pieceNode
+                );
+
+                rankNode =
+                    document.createElement(
+                        "span"
+                    );
+
+                rankNode.className =
+                    "coord rank";
+
+                rankNode.textContent =
+                    8 - r;
+
+                rankNode.style.display =
+                    c === 7
+                        ? "block"
+                        : "none";
+
+                cell.appendChild(
+                    rankNode
+                );
+
+                fileNode =
+                    document.createElement(
+                        "span"
+                    );
+
+                fileNode.className =
+                    "coord file";
+
+                fileNode.textContent =
+                    String.fromCharCode(
+                        97 + c
+                    );
+
+                fileNode.style.display =
+                    r === 7
+                        ? "block"
+                        : "none";
+
+                cell.appendChild(
+                    fileNode
+                );
+
+                board.appendChild(
+                    cell
+                );
+
+                cells[sq] =
+                    cell;
+
+                pieceNodes[sq] =
+                    pieceNode;
+
+                rankNodes[sq] =
+                    rankNode;
+
+                fileNodes[sq] =
+                    fileNode;
+            }
+        }
+
+        resizeBoard();
     }
 
-    function getViewportHeight() {
-        if (
-            window.visualViewport &&
-            window.visualViewport.height
-        ) {
-            return window.visualViewport.height;
-        }
-
-        return (
-            window.innerHeight ||
-            document.documentElement.clientHeight ||
-            480
-        );
-    }
-
-    function getSafeHorizontal() {
-        var width =
-            getViewportWidth();
-
-        if (width <= 360) {
-            return 6;
-        }
-
-        if (width <= 600) {
-            return 10;
-        }
-
-        if (width <= 900) {
-            return 14;
-        }
-
-        return 20;
-    }
-
-    function getBoardSize() {
-        var width =
-            getViewportWidth();
-
-        var height =
-            getViewportHeight();
-
-        var horizontalPadding =
-            getSafeHorizontal();
-
-        var availableWidth =
-            width -
-            horizontalPadding;
-
-        if (availableWidth < 180) {
-            availableWidth =
-                width;
-        }
-
-        var landscape =
-            width > height;
-
-        if (!landscape) {
-            return Math.floor(
-                Math.min(
-                    760,
-                    availableWidth
-                )
-            );
-        }
-
-        var topbar =
-            document.querySelector(
-                ".topbar"
-            );
-
-        var topbarHeight =
-            topbar
-                ? topbar.offsetHeight
-                : 40;
-
-        var statusHeight =
-            36;
-
-        var actionsHeight =
-            38;
-
-        var verticalGaps =
-            25;
-
-        var availableHeight =
-            height -
-            topbarHeight -
-            statusHeight -
-            actionsHeight -
-            verticalGaps;
-
-        if (
-            availableHeight <
-            180
-        ) {
-            availableHeight =
-                180;
-        }
-
-        return Math.floor(
-            Math.min(
-                760,
-                availableWidth,
-                availableHeight
-            )
-        );
-    }
-
-    function resizeBoard() {
-        var size =
-            getBoardSize();
-
-        if (
-            !size ||
-            size < 1
-        ) {
-            return;
-        }
-
-        boardScene.style.width =
-            size + "px";
-
-        boardScene.style.height =
-            size + "px";
-
-        board.style.width =
-            size + "px";
-
-        board.style.height =
-            size + "px";
-
-        status.style.width =
-            size + "px";
-
-        gameActions.style.width =
-            size + "px";
-
-        var squareSize =
-            size / 8;
-
-        var fontSize =
-            Math.floor(
-                squareSize * .84
-            );
-
-        var squares =
-            board.getElementsByClassName(
-                "square"
-            );
-
+    function setLegalTargets(
+        moves,
+        from
+    ) {
         var i;
+
+        legalTargets = [];
 
         for (
             i = 0;
-            i < squares.length;
+            i < 64;
             i++
         ) {
-            squares[i].style.fontSize =
-                fontSize + "px";
+            targetFlags[i] =
+                false;
+        }
+
+        for (
+            i = 0;
+            i < moves.length;
+            i++
+        ) {
+            if (
+                moves[i].from === from &&
+                !targetFlags[
+                moves[i].to
+                ]
+            ) {
+                targetFlags[
+                    moves[i].to
+                ] = true;
+
+                legalTargets.push(
+                    moves[i].to
+                );
+            }
         }
     }
 
-    function resetOrientationInstant(black) {
-        if (orientationTimer) {
+    function updateSceneClass() {
+        var classes =
+            "board-scene " +
+            (
+                boardBlack
+                    ? "orientation-black"
+                    : "orientation-white"
+            );
+
+        if (
+            gameMode === "two"
+        ) {
+            classes +=
+                " two-mode";
+        }
+
+        boardScene.className =
+            classes;
+    }
+
+    function resetOrientationInstant(
+        black
+    ) {
+        if (
+            orientationTimer
+        ) {
             clearTimeout(
                 orientationTimer
             );
@@ -1820,14 +2507,14 @@
         boardBlack =
             !!black;
 
-        boardScene.className =
-            boardBlack
-                ? "board-scene orientation-black"
-                : "board-scene";
+        updateSceneClass();
     }
 
-    function animateOrientation(black) {
-        black = !!black;
+    function animateOrientation(
+        black
+    ) {
+        black =
+            !!black;
 
         if (
             boardBlack === black
@@ -1835,7 +2522,9 @@
             return;
         }
 
-        if (!animationEnabled) {
+        if (
+            !animationEnabled
+        ) {
             resetOrientationInstant(
                 black
             );
@@ -1850,14 +2539,22 @@
         boardBlack =
             black;
 
+        var base =
+            "board-scene two-mode ";
+
         boardScene.className =
-            forward
-                ? "board-scene orientation-forward"
-                : "board-scene orientation-backward";
+            base +
+            (
+                forward
+                    ? "orientation-forward"
+                    : "orientation-backward"
+            );
 
         boardScene.offsetWidth;
 
-        if (orientationTimer) {
+        if (
+            orientationTimer
+        ) {
             clearTimeout(
                 orientationTimer
             );
@@ -1866,24 +2563,17 @@
         orientationTimer =
             setTimeout(
                 function () {
-                    boardScene.className =
-                        boardBlack
-                            ? "board-scene orientation-black"
-                            : "board-scene";
-
+                    updateSceneClass();
                     orientationTimer = 0;
                 },
-                740
+                475
             );
     }
 
-    function updateStatus(animate) {
-        var result =
-            gameStatus(
-                state,
-                false
-            );
-
+    function updateStatus(
+        result,
+        animate
+    ) {
         var text =
             result.text;
 
@@ -1898,12 +2588,14 @@
                 " — шах";
         }
 
-        if (aiThinking) {
+        if (
+            aiThinking
+        ) {
             text =
-                "ИИ думает…";
+                "ИИ думает...";
         }
 
-        statusText.innerHTML =
+        statusText.textContent =
             text;
 
         status.className =
@@ -1911,184 +2603,209 @@
                 animationEnabled
                 ? "status pop"
                 : "status";
+
+        lastRenderedResult =
+            result;
     }
 
-    function render(animateMove) {
-        board.innerHTML = "";
+    function render(
+        animateMove
+    ) {
+        var result =
+            gameStatus(
+                state,
+                false
+            );
 
-        var r;
-        var c;
-        var square;
-        var cell;
+        var kingSquare =
+            result.over
+                ? -1
+                : findKing(
+                    state,
+                    state.turn
+                );
+
+        var i;
         var piece;
-        var pieceElement;
-        var rankElement;
-        var fileElement;
+        var pColor;
+        var pType;
+        var pieceNode;
+        var isTarget;
+        var cellClass;
+
+        var showCursor =
+            usePCStyle() &&
+            cursor >= 0;
 
         for (
-            r = 0;
-            r < 8;
-            r++
+            i = 0;
+            i < 64;
+            i++
         ) {
-            for (
-                c = 0;
-                c < 8;
-                c++
-            ) {
-                square =
-                    index(r, c);
+            piece =
+                state.board[i];
 
-                cell =
-                    document.createElement("div");
-
-                cell.className =
-                    "square " +
+            cellClass =
+                "square " +
+                (
                     (
-                        (r + c) % 2 === 0
-                            ? "light"
-                            : "dark"
-                    );
-
-                cell.setAttribute(
-                    "data-square",
-                    square
-                );
-
-                if (
-                    selected === square
-                ) {
-                    cell.className +=
-                        " selected";
-                }
-
-                if (
-                    state.last &&
-                    (
-                        state.last.from === square ||
-                        state.last.to === square
-                    )
-                ) {
-                    cell.className +=
-                        " last";
-                }
-
-                if (
-                    inCheck(
-                        state,
-                        state.turn
-                    ) &&
-                    findKing(
-                        state,
-                        state.turn
-                    ) === square
-                ) {
-                    cell.className +=
-                        " check";
-                }
-
-                if (
-                    legalTargets.indexOf(
-                        square
-                    ) !== -1
-                ) {
-                    cell.className +=
-                        state.board[square] === "."
-                            ? " move"
-                            : " capture";
-                }
-
-                piece =
-                    state.board[square];
-
-                if (
-                    piece !== "."
-                ) {
-                    pieceElement =
-                        document.createElement("span");
-
-                    pieceElement.className =
-                        "piece " +
+                        Math.floor(
+                            i / 8
+                        ) +
                         (
-                            colorOf(piece) === "w"
-                                ? "white-piece"
-                                : "black-piece"
-                        );
-
-                    if (
-                        animateMove &&
-                        animationEnabled &&
-                        state.last &&
-                        state.last.to === square
-                    ) {
-                        pieceElement.className +=
-                            " enter";
-                    }
-
-                    pieceElement.innerHTML =
-                        PIECES[
-                        colorOf(piece)
-                        ][
-                        typeOf(piece)
-                        ];
-
-                    cell.appendChild(
-                        pieceElement
-                    );
-                }
-
-                if (c === 7) {
-                    rankElement =
-                        document.createElement("span");
-
-                    rankElement.className =
-                        "coord rank";
-
-                    rankElement.innerHTML =
-                        8 - r;
-
-                    cell.appendChild(
-                        rankElement
-                    );
-                }
-
-                if (r === 7) {
-                    fileElement =
-                        document.createElement("span");
-
-                    fileElement.className =
-                        "coord file";
-
-                    fileElement.innerHTML =
-                        String.fromCharCode(
-                            97 + c
-                        );
-
-                    cell.appendChild(
-                        fileElement
-                    );
-                }
-
-                board.appendChild(
-                    cell
+                            i % 8
+                        )
+                    ) % 2 === 0
+                        ? "light"
+                        : "dark"
                 );
+
+            if (
+                selected === i
+            ) {
+                cellClass +=
+                    " selected";
+            }
+
+            if (
+                showCursor &&
+                cursor === i
+            ) {
+                cellClass +=
+                    " cursor";
+            }
+
+            if (
+                state.last &&
+                (
+                    state.last.from === i ||
+                    state.last.to === i
+                )
+            ) {
+                cellClass +=
+                    " last";
+            }
+
+            if (
+                kingSquare === i &&
+                inCheck(
+                    state,
+                    state.turn
+                )
+            ) {
+                cellClass +=
+                    " check";
+            }
+
+            isTarget =
+                targetFlags[i];
+
+            if (
+                isTarget
+            ) {
+                cellClass +=
+                    piece === "."
+                        ? " move"
+                        : " capture";
+            }
+
+            cells[i].className =
+                cellClass;
+
+            pieceNode =
+                pieceNodes[i];
+
+            if (
+                piece === "."
+            ) {
+                pieceNode.style.display =
+                    "none";
+
+                pieceNode.textContent =
+                    "";
+
+                pieceNode.className =
+                    "piece";
+            } else {
+                pColor =
+                    colorOf(
+                        piece
+                    );
+
+                pType =
+                    typeOf(
+                        piece
+                    );
+
+                pieceNode.style.display =
+                    "block";
+
+                pieceNode.textContent =
+                    PIECES[
+                    pColor
+                    ][
+                    pType
+                    ];
+
+                pieceNode.className =
+                    "piece " +
+                    (
+                        pColor === "w"
+                            ? "white-piece"
+                            : "black-piece"
+                    );
+
+                if (
+                    animateMove &&
+                    animationEnabled &&
+                    state.last &&
+                    state.last.to === i
+                ) {
+                    pieceNode.className +=
+                        " enter";
+                }
             }
         }
 
-        resizeBoard();
+        if (
+            !orientationTimer
+        ) {
+            updateSceneClass();
+        }
+
         updateStatus(
+            result,
             animateMove
         );
+
+        return result;
     }
 
     function clearSelection() {
         selected = -1;
         legalTargets = [];
-        pendingPromotion = null;
+
+        for (
+            var i = 0;
+            i < 64;
+            i++
+        ) {
+            targetFlags[i] =
+                false;
+        }
+
+        pendingPromotion =
+            null;
     }
 
     function resetGame() {
-        if (aiTimer) {
-            clearTimeout(aiTimer);
+        if (
+            aiTimer
+        ) {
+            clearTimeout(
+                aiTimer
+            );
+
             aiTimer = 0;
         }
 
@@ -2096,20 +2813,30 @@
             createInitialState();
 
         history = [];
+
         positionHistory = {};
 
-        selected = -1;
-        legalTargets = [];
-        pendingPromotion = null;
+        clearSelection();
 
         aiThinking = false;
 
-        resetOrientationInstant(false);
+        cursor =
+            usePCStyle()
+                ? 60
+                : -1;
 
-        recordPosition(state);
+        resetOrientationInstant(
+            false
+        );
+
+        recordPosition(
+            state
+        );
 
         closePromotion();
+
         updateAnimationUI();
+
         render(false);
 
         if (
@@ -2149,36 +2876,33 @@
 
         clearSelection();
 
+        cursor =
+            usePCStyle()
+                ? (
+                    state.turn === "w"
+                        ? 60
+                        : 4
+                )
+                : -1;
+
         rebuildPositionHistory();
 
-        resetOrientationInstant(false);
+        resetOrientationInstant(
+            gameMode === "two" &&
+            shouldAutoFlip() &&
+            state.turn === "b"
+        );
 
         render(false);
     }
 
-    function rebuildPositionHistory() {
-        positionHistory = {};
-
-        var i;
-
-        for (
-            i = 0;
-            i < history.length;
-            i++
-        ) {
-            recordPosition(
-                history[i]
-            );
-        }
-
-        recordPosition(
-            state
-        );
-    }
-
-    function executeMove(move) {
+    function executeMove(
+        move
+    ) {
         history.push(
-            cloneState(state)
+            cloneState(
+                state
+            )
         );
 
         state =
@@ -2192,6 +2916,10 @@
         );
 
         clearSelection();
+
+        cursor =
+            move.to;
+
         closePromotion();
 
         if (
@@ -2200,15 +2928,16 @@
             animateOrientation(
                 state.turn === "b"
             );
-        }
-
-        render(true);
-
-        var result =
-            gameStatus(
-                state,
+        } else if (
+            gameMode === "two"
+        ) {
+            resetOrientationInstant(
                 false
             );
+        }
+
+        var result =
+            render(true);
 
         if (
             !result.over &&
@@ -2220,7 +2949,9 @@
     }
 
     function startAITurn() {
-        if (aiThinking) {
+        if (
+            aiThinking
+        ) {
             return;
         }
 
@@ -2247,7 +2978,9 @@
 
                     aiThinking = false;
 
-                    if (move) {
+                    if (
+                        move
+                    ) {
                         executeMove(
                             move
                         );
@@ -2256,12 +2989,14 @@
                     }
                 },
                 level >= 4
-                    ? 60
-                    : 25
+                    ? 45
+                    : 20
             );
     }
 
-    function chooseSquare(square) {
+    function chooseSquare(
+        square
+    ) {
         if (
             aiThinking ||
             gameStatus(
@@ -2279,20 +3014,34 @@
             return;
         }
 
+        if (
+            square < 0 ||
+            square > 63
+        ) {
+            return;
+        }
+
         var piece =
             state.board[square];
 
         var moves;
-        var candidates;
+        var candidates = [];
         var i;
 
-        if (selected === -1) {
+        if (
+            selected === -1
+        ) {
             if (
                 piece !== "." &&
-                colorOf(piece) === state.turn
+                colorOf(
+                    piece
+                ) === state.turn
             ) {
-                selected = square;
-                legalTargets = [];
+                selected =
+                    square;
+
+                cursor =
+                    square;
 
                 moves =
                     legalMoves(
@@ -2300,32 +3049,27 @@
                         state.turn
                     );
 
-                for (
-                    i = 0;
-                    i < moves.length;
-                    i++
-                ) {
-                    if (
-                        moves[i].from === square &&
-                        legalTargets.indexOf(
-                            moves[i].to
-                        ) === -1
-                    ) {
-                        legalTargets.push(
-                            moves[i].to
-                        );
-                    }
-                }
-
-                render(false);
+                setLegalTargets(
+                    moves,
+                    square
+                );
             }
+
+            render(false);
 
             return;
         }
 
-        if (square === selected) {
+        if (
+            square === selected
+        ) {
             clearSelection();
+
+            cursor =
+                square;
+
             render(false);
+
             return;
         }
 
@@ -2334,8 +3078,6 @@
                 state,
                 state.turn
             );
-
-        candidates = [];
 
         for (
             i = 0;
@@ -2352,44 +3094,43 @@
             }
         }
 
-        if (!candidates.length) {
+        if (
+            !candidates.length
+        ) {
             if (
                 piece !== "." &&
-                colorOf(piece) === state.turn
+                colorOf(
+                    piece
+                ) === state.turn
             ) {
-                selected = square;
-                legalTargets = [];
+                selected =
+                    square;
 
-                for (
-                    i = 0;
-                    i < moves.length;
-                    i++
-                ) {
-                    if (
-                        moves[i].from === square &&
-                        legalTargets.indexOf(
-                            moves[i].to
-                        ) === -1
-                    ) {
-                        legalTargets.push(
-                            moves[i].to
-                        );
-                    }
-                }
+                cursor =
+                    square;
+
+                setLegalTargets(
+                    moves,
+                    square
+                );
             } else {
                 clearSelection();
             }
 
             render(false);
+
             return;
         }
 
-        if (candidates.length > 1) {
+        if (
+            candidates.length > 1
+        ) {
             pendingPromotion = {
                 moves: candidates
             };
 
             openPromotion();
+
             return;
         }
 
@@ -2398,8 +3139,11 @@
         );
     }
 
-    function setMode(mode) {
-        gameMode = mode;
+    function setMode(
+        mode
+    ) {
+        gameMode =
+            mode;
 
         modalAiMode.className =
             mode === "ai"
@@ -2440,41 +3184,67 @@
         promotionOverlay.className =
             "overlay hidden";
 
-        pendingPromotion = null;
+        pendingPromotion =
+            null;
     }
 
-    board.onclick =
-        function (event) {
-            var target =
-                event.target;
+    function findBoardTarget(
+        target
+    ) {
+        while (
+            target &&
+            target !== board &&
+            !target.getAttribute(
+                "data-square"
+            )
+        ) {
+            target =
+                target.parentNode;
+        }
 
-            while (
-                target &&
-                target !== board &&
-                !target.getAttribute(
-                    "data-square"
-                )
-            ) {
-                target =
-                    target.parentNode;
-            }
+        return target &&
+            target !== board
+            ? target
+            : null;
+    }
 
-            if (
-                !target ||
-                target === board
-            ) {
-                return;
-            }
-
-            chooseSquare(
-                parseInt(
-                    target.getAttribute(
-                        "data-square"
-                    ),
-                    10
-                )
+    function handleBoardInteraction(
+        event
+    ) {
+        var target =
+            findBoardTarget(
+                event.target
             );
-        };
+
+        if (
+            !target
+        ) {
+            return;
+        }
+
+        chooseSquare(
+            parseInt(
+                target.getAttribute(
+                    "data-square"
+                ),
+                10
+            )
+        );
+    }
+
+    if (
+        pointerEvents &&
+        board.addEventListener
+    ) {
+        board.addEventListener(
+            "pointerdown",
+            handleBoardInteraction,
+            false
+        );
+    } else {
+        board.onclick =
+            handleBoardInteraction;
+    }
 
     newGameButton.onclick =
         function () {
@@ -2522,13 +3292,12 @@
                 !animationEnabled;
 
             saveAnimationSetting();
+
             updateAnimationUI();
 
-            if (!animationEnabled) {
-                resetOrientationInstant(
-                    boardBlack
-                );
-            }
+            resetOrientationInstant(
+                boardBlack
+            );
 
             render(false);
         };
@@ -2554,14 +3323,17 @@
 
     for (
         promotionIndex = 0;
-        promotionIndex < promotionButtons.length;
+        promotionIndex <
+        promotionButtons.length;
         promotionIndex++
     ) {
         promotionButtons[
             promotionIndex
         ].onclick =
             function () {
-                if (!pendingPromotion) {
+                if (
+                    !pendingPromotion
+                ) {
                     return;
                 }
 
@@ -2570,12 +3342,15 @@
                         "data-promotion"
                     );
 
-                var chosen = null;
+                var chosen =
+                    null;
+
                 var i;
 
                 for (
                     i = 0;
-                    i < pendingPromotion.moves.length;
+                    i <
+                    pendingPromotion.moves.length;
                     i++
                 ) {
                     if (
@@ -2589,12 +3364,66 @@
                     }
                 }
 
-                if (chosen) {
+                if (
+                    chosen
+                ) {
                     executeMove(
                         chosen
                     );
                 }
             };
+    }
+
+    function moveCursor(
+        dr,
+        dc
+    ) {
+        if (
+            !usePCStyle()
+        ) {
+            return;
+        }
+
+        if (
+            cursor < 0
+        ) {
+            cursor =
+                state.turn === "w"
+                    ? 60
+                    : 4;
+        }
+
+        if (
+            boardBlack
+        ) {
+            dr = -dr;
+            dc = -dc;
+        }
+
+        var r =
+            row(cursor) +
+            dr;
+
+        var c =
+            col(cursor) +
+            dc;
+
+        if (
+            !inside(
+                r,
+                c
+            )
+        ) {
+            return;
+        }
+
+        cursor =
+            index(
+                r,
+                c
+            );
+
+        render(false);
     }
 
     document.onkeydown =
@@ -2603,7 +3432,9 @@
                 event.keyCode ||
                 event.which;
 
-            if (key === 27) {
+            if (
+                key === 27
+            ) {
                 closeSettings();
                 clearSelection();
                 closePromotion();
@@ -2611,128 +3442,115 @@
                 return;
             }
 
-            if (key === 78) {
+            if (
+                key === 78
+            ) {
                 resetGame();
                 return;
             }
 
             if (
-                isTV() ||
-                gameMode === "two"
+                key === 37 ||
+                key === 38 ||
+                key === 39 ||
+                key === 40
             ) {
                 if (
-                    key === 37 ||
-                    key === 38 ||
-                    key === 39 ||
-                    key === 40
+                    !usePCStyle()
                 ) {
-                    if (selected < 0) {
-                        selected =
-                            state.turn === "w"
-                                ? 60
-                                : 4;
-                    }
-
-                    var rr =
-                        row(selected);
-
-                    var cc =
-                        col(selected);
-
-                    if (key === 37) {
-                        cc--;
-                    }
-
-                    if (key === 38) {
-                        rr--;
-                    }
-
-                    if (key === 39) {
-                        cc++;
-                    }
-
-                    if (key === 40) {
-                        rr++;
-                    }
-
-                    if (inside(rr, cc)) {
-                        selected =
-                            index(
-                                rr,
-                                cc
-                            );
-
-                        legalTargets = [];
-
-                        var moves =
-                            legalMoves(
-                                state,
-                                state.turn
-                            );
-
-                        var i;
-
-                        for (
-                            i = 0;
-                            i < moves.length;
-                            i++
-                        ) {
-                            if (
-                                moves[i].from === selected
-                            ) {
-                                legalTargets.push(
-                                    moves[i].to
-                                );
-                            }
-                        }
-
-                        render(false);
-                    }
-
                     return;
                 }
 
                 if (
-                    key === 13 ||
-                    key === 32
+                    key === 37
                 ) {
-                    if (selected >= 0) {
-                        chooseSquare(
-                            selected
-                        );
-                    }
+                    moveCursor(
+                        0,
+                        -1
+                    );
+                }
+
+                if (
+                    key === 38
+                ) {
+                    moveCursor(
+                        -1,
+                        0
+                    );
+                }
+
+                if (
+                    key === 39
+                ) {
+                    moveCursor(
+                        0,
+                        1
+                    );
+                }
+
+                if (
+                    key === 40
+                ) {
+                    moveCursor(
+                        1,
+                        0
+                    );
+                }
+
+                if (
+                    event.preventDefault
+                ) {
+                    event.preventDefault();
+                }
+
+                return;
+            }
+
+            if (
+                key === 13 ||
+                key === 32
+            ) {
+                if (
+                    !usePCStyle()
+                ) {
+                    return;
+                }
+
+                if (
+                    cursor < 0
+                ) {
+                    cursor =
+                        state.turn === "w"
+                            ? 60
+                            : 4;
+                }
+
+                chooseSquare(
+                    cursor
+                );
+
+                if (
+                    event.preventDefault
+                ) {
+                    event.preventDefault();
                 }
             }
         };
 
-    function handleViewportResize() {
-        resizeBoard();
+    function handleResize() {
+        scheduleResize();
     }
 
     window.onresize =
-        handleViewportResize;
+        handleResize;
 
-    if (window.visualViewport) {
-        try {
-            window.visualViewport.addEventListener(
-                "resize",
-                handleViewportResize
-            );
-        } catch (e) {
-        }
-    }
+    window.onorientationchange =
+        handleResize;
 
-    window.onload =
-        function () {
-            updateAnimationUI();
-            resetOrientationInstant(false);
-            render(false);
-            resizeBoard();
-        };
-
+    buildBoard();
     updateAnimationUI();
     resetOrientationInstant(false);
+    recordPosition(state);
     render(false);
     resizeBoard();
-
-})();
+}());
