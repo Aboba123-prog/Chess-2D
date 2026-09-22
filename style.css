@@ -29,34 +29,29 @@ button {
     -webkit-appearance: none;
     appearance: none;
     cursor: pointer;
+    outline: 0;
 }
 
 .app {
     width: 100%;
     min-height: 100vh;
-    min-height: 100svh;
-    padding-top: max(8px, env(safe-area-inset-top));
-    padding-right: max(8px, env(safe-area-inset-right));
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
-    padding-left: max(8px, env(safe-area-inset-left));
+    padding: 8px;
 }
 
 .topbar {
     width: 100%;
     max-width: 1120px;
     min-height: 42px;
-    margin: 0 auto 10px;
+    margin: 0 auto 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
 }
 
 .brand {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
     color: #f7f8fa;
     font-size: 21px;
     font-weight: 700;
@@ -64,8 +59,10 @@ button {
 }
 
 .brand-mark {
-    flex: 0 0 auto;
-    font-size: 21px;
+    margin-right: 8px;
+    font-size: 14px;
+    letter-spacing: .5px;
+    color: #d7d9dd;
 }
 
 .brand-text {
@@ -74,10 +71,8 @@ button {
 }
 
 .top-actions {
-    flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 7px;
 }
 
 .top-button,
@@ -91,10 +86,9 @@ button {
     background: #171a1f;
     color: #f5f6f8;
     transition:
-        background .16s ease,
-        border-color .16s ease,
-        transform .10s ease,
-        box-shadow .16s ease;
+        background .14s ease,
+        border-color .14s ease,
+        transform .10s ease;
 }
 
 .top-button:hover,
@@ -111,29 +105,33 @@ button {
 .action-button:active,
 .mode-button:active,
 .close-button:active {
-    transform: scale(.97);
+    transform: scale(.98);
 }
 
 .top-button {
+    margin-right: 7px;
     min-height: 38px;
-    padding: 0 13px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
     font-size: 12px;
     font-weight: 700;
 }
 
 .settings-button {
-    width: 40px;
-    height: 38px;
-    padding: 0;
-    font-size: 18px;
+    min-height: 38px;
+    padding: 0 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
 }
 
-.settings-button:hover i {
-    animation: gearSpin .55s ease;
+.button-icon {
+    font-size: 16px;
+    line-height: 1;
 }
 
 .main {
@@ -155,7 +153,7 @@ button {
 .status {
     width: 100%;
     height: 36px;
-    margin-bottom: 8px;
+    margin-bottom: 7px;
     border: 1px solid #292e36;
     border-radius: 9px;
     background: #15181d;
@@ -168,7 +166,7 @@ button {
 }
 
 .status.pop {
-    animation: statusPop .28s ease;
+    animation: statusPop .20s ease;
 }
 
 .board-viewport {
@@ -177,71 +175,62 @@ button {
     align-items: center;
     justify-content: center;
     overflow: visible;
-    perspective: 1200px;
-    -webkit-perspective: 1200px;
 }
 
 .board-scene {
     position: relative;
     flex: 0 0 auto;
     transform-origin: 50% 50%;
-    -webkit-transform-origin: 50% 50%;
-    transform: rotate(0deg) scale(1) translateZ(0);
-    -webkit-transform: rotate(0deg) scale(1) translateZ(0);
-    transform-style: preserve-3d;
-    -webkit-transform-style: preserve-3d;
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
+    transform: rotate(0deg) translateZ(0);
+    -webkit-transform: rotate(0deg) translateZ(0);
     will-change: transform;
 }
 
 .board-scene.orientation-black {
-    transform: rotate(180deg) scale(1) translateZ(0);
-    -webkit-transform: rotate(180deg) scale(1) translateZ(0);
+    transform: rotate(180deg) translateZ(0);
+    -webkit-transform: rotate(180deg) translateZ(0);
 }
 
 .board-scene.orientation-forward {
-    animation: boardRotateForward .72s cubic-bezier(.18, .82, .24, 1) both;
-    -webkit-animation: boardRotateForward .72s cubic-bezier(.18, .82, .24, 1) both;
+    animation:
+        boardRotateForward .46s cubic-bezier(.45, .05, .2, 1) both;
+
+    -webkit-animation:
+        boardRotateForward .46s cubic-bezier(.45, .05, .2, 1) both;
 }
 
 .board-scene.orientation-backward {
-    animation: boardRotateBackward .72s cubic-bezier(.18, .82, .24, 1) both;
-    -webkit-animation: boardRotateBackward .72s cubic-bezier(.18, .82, .24, 1) both;
+    animation:
+        boardRotateBackward .46s cubic-bezier(.45, .05, .2, 1) both;
+
+    -webkit-animation:
+        boardRotateBackward .46s cubic-bezier(.45, .05, .2, 1) both;
 }
 
 .board {
     width: 100%;
     height: 100%;
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(8, 1fr);
-    border: 3px solid #2a2f36;
-    border-radius: 9px;
+    position: relative;
+    display: block;
+    border: 2px solid #2a2f36;
+    border-radius: 7px;
     overflow: hidden;
     background: #101217;
     box-shadow:
-        0 20px 55px rgba(0, 0, 0, .34),
-        0 1px 0 rgba(255, 255, 255, .04) inset;
+        0 14px 35px rgba(0, 0, 0, .32);
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
 }
 
 .square {
-    position: relative;
+    position: absolute;
     min-width: 0;
     min-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     line-height: 1;
-    transition:
-        background-color .15s ease,
-        box-shadow .15s ease,
-        filter .15s ease;
 }
 
 .light {
@@ -252,70 +241,67 @@ button {
     background: #a77952;
 }
 
-.square:hover {
-    filter: brightness(1.025);
-}
-
 .square.selected {
     box-shadow:
-        inset 0 0 0 4px rgba(255, 224, 72, .96),
-        inset 0 0 22px rgba(255, 224, 72, .12);
+        inset 0 0 0 3px rgba(255, 224, 72, .96);
+}
+
+.square.cursor {
+    box-shadow:
+        inset 0 0 0 2px rgba(255, 255, 255, .82);
 }
 
 .square.last {
     background-image:
-        linear-gradient(rgba(255, 220, 70, .22),
-            rgba(255, 220, 70, .22));
+        linear-gradient(rgba(255, 220, 70, .20),
+            rgba(255, 220, 70, .20));
 }
 
 .square.check {
     background-image:
-        linear-gradient(rgba(226, 56, 56, .58),
-            rgba(226, 56, 56, .58));
-    animation: checkPulse .65s ease;
+        linear-gradient(rgba(226, 56, 56, .56),
+            rgba(226, 56, 56, .56));
 }
 
 .square.move:after {
     content: "";
     position: absolute;
-    width: 20%;
-    height: 20%;
+    width: 18%;
+    height: 18%;
     border-radius: 50%;
-    background: rgba(25, 25, 25, .35);
-    transition: transform .16s ease;
-}
-
-.square.move:hover:after {
-    transform: scale(1.22);
+    background:
+        rgba(25, 25, 25, .34);
 }
 
 .square.capture:after {
     content: "";
     position: absolute;
-    width: 70%;
-    height: 70%;
-    border: 4px solid rgba(35, 35, 35, .34);
+    width: 68%;
+    height: 68%;
+    border:
+        3px solid rgba(35, 35, 35, .34);
     border-radius: 50%;
 }
 
 .piece {
     position: relative;
     z-index: 3;
-    display: inline-block;
+    display: block;
     line-height: 1;
     font-family:
         "DejaVu Sans",
         "Segoe UI Symbol",
         "Arial Unicode MS",
         serif;
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
+    transform:
+        translateZ(0);
+    -webkit-transform:
+        translateZ(0);
 }
 
-.orientation-black .piece,
-.orientation-black .coord {
-    transform: rotate(180deg) translateZ(0);
-    -webkit-transform: rotate(180deg) translateZ(0);
+.piece.enter {
+    animation:
+        pieceEnter .16s ease;
 }
 
 .white-piece {
@@ -325,24 +311,79 @@ button {
         1px -1px 0 #777,
         -1px 1px 0 #777,
         1px 1px 0 #777,
-        0 3px 2px rgba(0, 0, 0, .32);
+        0 2px 2px rgba(0, 0, 0, .28);
 }
 
 .black-piece {
     color: #161616;
     text-shadow:
-        0 1px 1px rgba(255, 255, 255, .22),
-        0 3px 2px rgba(0, 0, 0, .28);
+        0 1px 1px rgba(255, 255, 255, .20),
+        0 2px 2px rgba(0, 0, 0, .25);
 }
 
-.piece.enter {
-    animation: pieceEnter .22s ease;
+.two-mode.orientation-white .white-piece {
+    transform:
+        rotate(0deg) translateZ(0);
+
+    -webkit-transform:
+        rotate(0deg) translateZ(0);
+}
+
+.two-mode.orientation-white .black-piece {
+    transform:
+        rotate(180deg) translateZ(0);
+
+    -webkit-transform:
+        rotate(180deg) translateZ(0);
+}
+
+.two-mode.orientation-black .white-piece {
+    transform:
+        rotate(180deg) translateZ(0);
+
+    -webkit-transform:
+        rotate(180deg) translateZ(0);
+}
+
+.two-mode.orientation-black .black-piece {
+    transform:
+        rotate(0deg) translateZ(0);
+
+    -webkit-transform:
+        rotate(0deg) translateZ(0);
+}
+
+.two-mode.orientation-forward .white-piece,
+.two-mode.orientation-backward .black-piece {
+    transform:
+        rotate(0deg) translateZ(0);
+
+    -webkit-transform:
+        rotate(0deg) translateZ(0);
+}
+
+.two-mode.orientation-forward .black-piece,
+.two-mode.orientation-backward .white-piece {
+    transform:
+        rotate(180deg) translateZ(0);
+
+    -webkit-transform:
+        rotate(180deg) translateZ(0);
+}
+
+.orientation-black .coord {
+    transform:
+        rotate(180deg) translateZ(0);
+
+    -webkit-transform:
+        rotate(180deg) translateZ(0);
 }
 
 .coord {
     position: absolute;
     z-index: 5;
-    color: rgba(0, 0, 0, .48);
+    color:
+        rgba(0, 0, 0, .48);
     font-size: 9px;
     font-weight: 700;
     pointer-events: none;
@@ -368,9 +409,8 @@ button {
 
 .game-actions {
     width: 100%;
-    margin-top: 8px;
+    margin-top: 7px;
     display: flex;
-    gap: 7px;
 }
 
 .action-button {
@@ -380,7 +420,6 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
     font-size: 12px;
     font-weight: 700;
 }
@@ -389,17 +428,15 @@ button {
     position: fixed;
     z-index: 100;
     top: 0;
-    left: 0;
     right: 0;
     bottom: 0;
+    left: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-top: max(15px, env(safe-area-inset-top));
-    padding-right: max(15px, env(safe-area-inset-right));
-    padding-bottom: max(15px, env(safe-area-inset-bottom));
-    padding-left: max(15px, env(safe-area-inset-left));
-    background: rgba(0, 0, 0, .72);
+    padding: 15px;
+    background:
+        rgba(0, 0, 0, .72);
 }
 
 .hidden {
@@ -416,42 +453,36 @@ button {
     border-radius: 14px;
     background: #171a1f;
     box-shadow:
-        0 24px 80px rgba(0, 0, 0, .52),
-        0 1px 0 rgba(255, 255, 255, .04) inset;
-    animation: modalOpen .18s ease;
+        0 24px 70px rgba(0, 0, 0, .50);
 }
 
 .modal-header {
     min-height: 53px;
     padding: 0 15px;
-    border-bottom: 1px solid #2d333b;
+    border-bottom:
+        1px solid #2d333b;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
 .modal-title {
-    display: flex;
-    align-items: center;
-    gap: 7px;
     font-size: 16px;
     font-weight: 700;
-}
-
-.modal-title i {
-    font-size: 17px;
 }
 
 .close-button {
     width: 34px;
     height: 34px;
     padding: 0;
-    font-size: 14px;
+    font-size: 22px;
+    line-height: 1;
 }
 
 .settings-section {
     padding: 14px 15px;
-    border-bottom: 1px solid #292e36;
+    border-bottom:
+        1px solid #292e36;
 }
 
 .settings-section:last-child {
@@ -472,7 +503,6 @@ button {
     padding: 9px 11px;
     display: flex;
     align-items: center;
-    gap: 8px;
     text-align: left;
     font-size: 12px;
 }
@@ -487,7 +517,11 @@ button {
 }
 
 .mode-icon {
-    width: 20px;
+    margin-right: 8px;
+    width: 26px;
+    color: #cdd1d7;
+    font-size: 10px;
+    font-weight: 700;
     text-align: center;
 }
 
@@ -512,24 +546,15 @@ select {
 .switch-row {
     width: 100%;
     min-height: 42px;
-    padding: 0 2px;
-    outline: 0;
+    padding: 0 9px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
     text-align: left;
 }
 
 .switch-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     font-size: 12px;
-}
-
-.switch-label i {
-    color: #d6b95b;
 }
 
 .switch {
@@ -539,7 +564,8 @@ select {
     flex: 0 0 48px;
     border-radius: 20px;
     background: #343941;
-    transition: background .18s ease;
+    transition:
+        background .16s ease;
 }
 
 .switch-knob {
@@ -550,8 +576,10 @@ select {
     height: 21px;
     border-radius: 50%;
     background: #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, .28);
-    transition: left .18s ease;
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, .28);
+    transition:
+        left .16s ease;
 }
 
 .switch.on {
@@ -574,7 +602,6 @@ select {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
     color: #adb2ba;
     font-size: 11px;
 }
@@ -597,30 +624,20 @@ select {
 }
 
 .promotion-buttons {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
+    display: flex;
+    flex-wrap: nowrap;
 }
 
 .promotion-buttons button {
+    width: 23%;
     height: 70px;
-    border: 1px solid #3a4048;
+    margin: 0 1%;
+    border:
+        1px solid #3a4048;
     border-radius: 9px;
     background: #242830;
     color: #fff;
     font-size: 40px;
-    transition:
-        transform .12s ease,
-        background .15s ease;
-}
-
-.promotion-buttons button:hover {
-    background: #2d333c;
-    transform: translateY(-2px);
-}
-
-.promotion-buttons button:active {
-    transform: scale(.96);
 }
 
 .no-animations *,
@@ -632,199 +649,93 @@ select {
 
 @keyframes boardRotateForward {
     0% {
-        transform: rotate(0deg) scale(1) translateZ(0);
-    }
-
-    18% {
-        transform: rotate(24deg) scale(.992) translateZ(0);
-    }
-
-    42% {
-        transform: rotate(78deg) scale(.962) translateZ(0);
-    }
-
-    58% {
-        transform: rotate(112deg) scale(.948) translateZ(0);
-    }
-
-    80% {
-        transform: rotate(166deg) scale(.988) translateZ(0);
-    }
-
-    94% {
-        transform: rotate(182deg) scale(1.006) translateZ(0);
+        transform:
+            rotate(0deg) translateZ(0);
     }
 
     100% {
-        transform: rotate(180deg) scale(1) translateZ(0);
+        transform:
+            rotate(180deg) translateZ(0);
     }
 }
 
 @-webkit-keyframes boardRotateForward {
     0% {
-        -webkit-transform: rotate(0deg) scale(1) translateZ(0);
-    }
-
-    18% {
-        -webkit-transform: rotate(24deg) scale(.992) translateZ(0);
-    }
-
-    42% {
-        -webkit-transform: rotate(78deg) scale(.962) translateZ(0);
-    }
-
-    58% {
-        -webkit-transform: rotate(112deg) scale(.948) translateZ(0);
-    }
-
-    80% {
-        -webkit-transform: rotate(166deg) scale(.988) translateZ(0);
-    }
-
-    94% {
-        -webkit-transform: rotate(182deg) scale(1.006) translateZ(0);
+        -webkit-transform:
+            rotate(0deg) translateZ(0);
     }
 
     100% {
-        -webkit-transform: rotate(180deg) scale(1) translateZ(0);
+        -webkit-transform:
+            rotate(180deg) translateZ(0);
     }
 }
 
 @keyframes boardRotateBackward {
     0% {
-        transform: rotate(180deg) scale(1) translateZ(0);
-    }
-
-    18% {
-        transform: rotate(156deg) scale(.992) translateZ(0);
-    }
-
-    42% {
-        transform: rotate(102deg) scale(.962) translateZ(0);
-    }
-
-    58% {
-        transform: rotate(68deg) scale(.948) translateZ(0);
-    }
-
-    80% {
-        transform: rotate(14deg) scale(.988) translateZ(0);
-    }
-
-    94% {
-        transform: rotate(-2deg) scale(1.006) translateZ(0);
+        transform:
+            rotate(180deg) translateZ(0);
     }
 
     100% {
-        transform: rotate(0deg) scale(1) translateZ(0);
+        transform:
+            rotate(0deg) translateZ(0);
     }
 }
 
 @-webkit-keyframes boardRotateBackward {
     0% {
-        -webkit-transform: rotate(180deg) scale(1) translateZ(0);
-    }
-
-    18% {
-        -webkit-transform: rotate(156deg) scale(.992) translateZ(0);
-    }
-
-    42% {
-        -webkit-transform: rotate(102deg) scale(.962) translateZ(0);
-    }
-
-    58% {
-        -webkit-transform: rotate(68deg) scale(.948) translateZ(0);
-    }
-
-    80% {
-        -webkit-transform: rotate(14deg) scale(.988) translateZ(0);
-    }
-
-    94% {
-        -webkit-transform: rotate(-2deg) scale(1.006) translateZ(0);
+        -webkit-transform:
+            rotate(180deg) translateZ(0);
     }
 
     100% {
-        -webkit-transform: rotate(0deg) scale(1) translateZ(0);
+        -webkit-transform:
+            rotate(0deg) translateZ(0);
     }
 }
 
 @keyframes pieceEnter {
     0% {
-        opacity: .2;
-        transform: scale(.74);
+        opacity: .4;
+        transform:
+            scale(.90) translateZ(0);
     }
 
     100% {
         opacity: 1;
-        transform: scale(1);
+        transform:
+            scale(1) translateZ(0);
     }
 }
 
 @keyframes statusPop {
     0% {
-        opacity: .4;
-        transform: translateY(3px);
+        opacity: .65;
+        transform:
+            translateY(2px);
     }
 
     100% {
         opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes checkPulse {
-    0% {
-        filter: brightness(1);
-    }
-
-    50% {
-        filter: brightness(1.24);
-    }
-
-    100% {
-        filter: brightness(1);
-    }
-}
-
-@keyframes modalOpen {
-    0% {
-        opacity: 0;
-        transform: scale(.97) translateY(8px);
-    }
-
-    100% {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
-}
-
-@keyframes gearSpin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(65deg);
+        transform:
+            translateY(0);
     }
 }
 
 @media (min-width: 981px) {
 
     .game-area,
-    .board-viewport {
+    .board-viewport,
+    .status,
+    .game-actions {
         max-width: 760px;
     }
 
     .main {
-        min-height: calc(100vh - 66px);
+        min-height:
+            calc(100vh - 65px);
         align-items: center;
-    }
-
-    .status,
-    .game-actions {
-        max-width: 760px;
     }
 }
 
@@ -843,26 +754,11 @@ select {
     }
 }
 
-@media (max-width: 767px) {
-    .app {
-        padding-top: max(5px, env(safe-area-inset-top));
-        padding-right: max(5px, env(safe-area-inset-right));
-        padding-bottom: max(5px, env(safe-area-inset-bottom));
-        padding-left: max(5px, env(safe-area-inset-left));
-    }
-
-    .game-area {
-        width: 100%;
-        max-width: 100%;
-    }
-
-    .board-viewport {
-        width: 100%;
-        max-width: 100%;
-    }
-}
-
 @media (max-width: 600px) {
+    .app {
+        padding: 5px;
+    }
+
     .topbar {
         min-height: 36px;
         margin-bottom: 5px;
@@ -870,18 +766,14 @@ select {
 
     .brand {
         font-size: 17px;
-        gap: 6px;
     }
 
     .brand-mark {
-        font-size: 17px;
+        font-size: 12px;
     }
 
-    .top-actions {
-        gap: 5px;
-    }
-
-    .top-button {
+    .top-button,
+    .settings-button {
         width: 36px;
         min-width: 36px;
         height: 34px;
@@ -890,15 +782,12 @@ select {
         font-size: 0;
     }
 
-    .top-button i {
-        font-size: 12px;
+    .button-icon {
+        font-size: 15px;
     }
 
-    .settings-button {
-        width: 36px;
-        min-width: 36px;
-        height: 34px;
-        font-size: 15px;
+    .button-text {
+        display: none;
     }
 
     .status {
@@ -909,18 +798,17 @@ select {
     }
 
     .board {
-        border-width: 2px;
         border-radius: 5px;
+        border-width: 2px;
     }
 
     .square.selected {
         box-shadow:
-            inset 0 0 0 3px rgba(255, 224, 72, .96),
-            inset 0 0 15px rgba(255, 224, 72, .1);
+            inset 0 0 0 2px rgba(255, 224, 72, .96);
     }
 
     .square.capture:after {
-        border-width: 3px;
+        border-width: 2px;
     }
 
     .coord {
@@ -947,10 +835,6 @@ select {
         padding: 5px 8px;
         font-size: 10px;
     }
-
-    .action-button i {
-        font-size: 10px;
-    }
 }
 
 @media (max-width: 420px) {
@@ -958,200 +842,189 @@ select {
         font-size: 16px;
     }
 
-    .brand-mark {
-        font-size: 16px;
+    .settings-modal,
+    .promotion-modal {
+        border-radius: 10px;
     }
 
-    .topbar {
-        min-height: 34px;
+    .promotion-modal {
+        padding: 14px;
     }
 
-    .top-button,
-    .settings-button {
-        width: 34px;
-        min-width: 34px;
-        height: 32px;
-        min-height: 32px;
-    }
-
-    .status {
-        height: 29px;
-        font-size: 9px;
-    }
-
-    .action-button {
-        min-height: 32px;
-        padding: 4px 7px;
-        font-size: 9px;
+    .promotion-buttons button {
+        height: 58px;
+        font-size: 34px;
     }
 }
 
-@media (max-width: 360px) {
-    .app {
-        padding-top: max(3px, env(safe-area-inset-top));
-        padding-right: max(3px, env(safe-area-inset-right));
-        padding-bottom: max(3px, env(safe-area-inset-bottom));
-        padding-left: max(3px, env(safe-area-inset-left));
+@media (hover: none) {
+
+    .top-button:hover,
+    .settings-button:hover,
+    .action-button:hover,
+    .mode-button:hover,
+    .close-button:hover {
+        background: #171a1f;
+        border-color: #30353d;
+    }
+}
+
+.modern-layout .app {
+    padding-top:
+        max(8px, env(safe-area-inset-top));
+
+    padding-right:
+        max(8px, env(safe-area-inset-right));
+
+    padding-bottom:
+        max(8px, env(safe-area-inset-bottom));
+
+    padding-left:
+        max(8px, env(safe-area-inset-left));
+}
+
+.modern-layout .game-area {
+    width:
+        min(94vw,
+            calc(100vh - 135px),
+            760px);
+
+    max-width: 760px;
+}
+
+.modern-layout .board-viewport {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+}
+
+.modern-layout .board-scene {
+    width: 100%;
+    height: 100%;
+    max-width: 760px;
+    max-height: 760px;
+}
+
+.modern-layout .board {
+    display: grid;
+    grid-template-columns:
+        repeat(8, 1fr);
+
+    grid-template-rows:
+        repeat(8, 1fr);
+
+    width: 100%;
+    height: 100%;
+}
+
+.modern-layout .square {
+    position: relative;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+.modern-layout .piece {
+    font-size:
+        clamp(30px,
+            8.3vw,
+            72px);
+}
+
+.modern-layout .coord {
+    font-size:
+        clamp(7px,
+            1vw,
+            10px);
+}
+
+.modern-layout .top-actions {
+    gap: 7px;
+}
+
+.modern-layout .top-button {
+    margin-right: 0;
+}
+
+.modern-layout .promotion-buttons {
+    display: grid;
+    grid-template-columns:
+        repeat(4, 1fr);
+    gap: 8px;
+}
+
+.modern-layout .promotion-buttons button {
+    width: 100%;
+    margin: 0;
+}
+
+@supports (height: 100dvh) {
+    .modern-layout .game-area {
+        width:
+            min(94vw,
+                calc(100dvh - 135px),
+                760px);
+    }
+}
+
+@media (orientation: landscape) and (max-height: 700px) {
+    .modern-layout .game-area {
+        width:
+            min(82vw,
+                calc(100vh - 92px),
+                760px);
     }
 
-    .brand {
-        font-size: 15px;
+    @supports (height: 100dvh) {
+        .modern-layout .game-area {
+            width:
+                min(82vw,
+                    calc(100dvh - 92px),
+                    760px);
+        }
     }
 
-    .brand-mark {
-        font-size: 15px;
-    }
-
-    .topbar {
-        min-height: 32px;
+    .modern-layout .topbar {
+        min-height: 34px;
         margin-bottom: 4px;
     }
 
-    .top-button,
-    .settings-button {
-        width: 31px;
-        min-width: 31px;
+    .modern-layout .status {
         height: 30px;
-        min-height: 30px;
-    }
-
-    .status {
-        height: 27px;
         margin-bottom: 4px;
-        font-size: 8px;
     }
 
-    .game-actions {
+    .modern-layout .game-actions {
         margin-top: 4px;
     }
+}
 
-    .action-button {
-        min-height: 30px;
-        padding: 3px 5px;
-        font-size: 8px;
+@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+    .modern-layout .overlay {
+        background:
+            rgba(0, 0, 0, .58);
+
+        -webkit-backdrop-filter:
+            blur(8px);
+
+        backdrop-filter:
+            blur(8px);
     }
 
-    .action-button i {
-        font-size: 8px;
-    }
-
-    .coord {
-        font-size: 6px;
+    .modern-layout .settings-modal,
+    .modern-layout .promotion-modal {
+        background:
+            rgba(23,
+                26,
+                31,
+                .94);
     }
 }
 
-@media (orientation: landscape) and (max-height: 650px) {
-    .app {
-        padding-top: max(3px, env(safe-area-inset-top));
-        padding-bottom: max(3px, env(safe-area-inset-bottom));
-    }
+@supports (scrollbar-width: thin) {
 
-    .topbar {
-        min-height: 30px;
-        margin-bottom: 3px;
-    }
-
-    .brand {
-        font-size: 15px;
-    }
-
-    .brand-mark {
-        font-size: 15px;
-    }
-
-    .top-button,
-    .settings-button {
-        height: 30px;
-        min-height: 30px;
-    }
-
-    .status {
-        height: 27px;
-        margin-bottom: 3px;
-        font-size: 9px;
-    }
-
-    .game-actions {
-        margin-top: 3px;
-    }
-
-    .action-button {
-        min-height: 28px;
-        font-size: 9px;
-    }
-}
-
-@media (orientation: landscape) and (max-height: 480px) {
-    .topbar {
-        min-height: 27px;
-        margin-bottom: 2px;
-    }
-
-    .brand {
-        font-size: 13px;
-    }
-
-    .top-button,
-    .settings-button {
-        width: 29px;
-        min-width: 29px;
-        height: 27px;
-        min-height: 27px;
-    }
-
-    .status {
-        height: 24px;
-        margin-bottom: 2px;
-    }
-
-    .game-actions {
-        margin-top: 2px;
-    }
-
-    .action-button {
-        min-height: 26px;
-        padding: 3px;
-        font-size: 8px;
-    }
-}
-
-@media (min-width: 600px) and (max-width: 900px) and (orientation: portrait) {
-    .game-area {
-        max-width: 700px;
-    }
-
-    .brand {
-        font-size: 19px;
-    }
-
-    .status {
-        height: 38px;
-        font-size: 13px;
-    }
-}
-
-@media (min-width: 700px) and (max-width: 1200px) and (orientation: landscape) {
-    .game-area {
-        max-width: 700px;
-    }
-
-    .board {
-        border-radius: 8px;
-    }
-}
-
-@media (min-width: 1000px) and (max-width: 1600px) {
-    .game-area {
-        max-width: 760px;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-    .app *,
-    .app *:before,
-    .app *:after {
-        animation: none !important;
-        transition: none !important;
+    .modern-layout .settings-modal,
+    .modern-layout .promotion-modal {
+        scrollbar-width: thin;
     }
 }
