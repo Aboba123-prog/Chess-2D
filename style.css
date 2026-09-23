@@ -194,7 +194,6 @@ button {
 .board-scene.orientation-forward {
     animation:
         boardRotateForward .46s cubic-bezier(.45, .05, .2, 1) both;
-
     -webkit-animation:
         boardRotateForward .46s cubic-bezier(.45, .05, .2, 1) both;
 }
@@ -202,7 +201,6 @@ button {
 .board-scene.orientation-backward {
     animation:
         boardRotateBackward .46s cubic-bezier(.45, .05, .2, 1) both;
-
     -webkit-animation:
         boardRotateBackward .46s cubic-bezier(.45, .05, .2, 1) both;
 }
@@ -324,7 +322,6 @@ button {
 .two-mode.orientation-white .white-piece {
     transform:
         rotate(0deg) translateZ(0);
-
     -webkit-transform:
         rotate(0deg) translateZ(0);
 }
@@ -332,7 +329,6 @@ button {
 .two-mode.orientation-white .black-piece {
     transform:
         rotate(180deg) translateZ(0);
-
     -webkit-transform:
         rotate(180deg) translateZ(0);
 }
@@ -340,7 +336,6 @@ button {
 .two-mode.orientation-black .white-piece {
     transform:
         rotate(180deg) translateZ(0);
-
     -webkit-transform:
         rotate(180deg) translateZ(0);
 }
@@ -348,7 +343,6 @@ button {
 .two-mode.orientation-black .black-piece {
     transform:
         rotate(0deg) translateZ(0);
-
     -webkit-transform:
         rotate(0deg) translateZ(0);
 }
@@ -357,7 +351,6 @@ button {
 .two-mode.orientation-backward .black-piece {
     transform:
         rotate(0deg) translateZ(0);
-
     -webkit-transform:
         rotate(0deg) translateZ(0);
 }
@@ -366,7 +359,6 @@ button {
 .two-mode.orientation-backward .white-piece {
     transform:
         rotate(180deg) translateZ(0);
-
     -webkit-transform:
         rotate(180deg) translateZ(0);
 }
@@ -374,7 +366,6 @@ button {
 .orientation-black .coord {
     transform:
         rotate(180deg) translateZ(0);
-
     -webkit-transform:
         rotate(180deg) translateZ(0);
 }
