@@ -73,7 +73,7 @@
         ],
         b: [
             -20, -10, -10, -10, -10, -10, -10, -20,
-            -10, 0, 0, 0, 0, 0, 0, -10,
+            -10, 0, 0, 0, 0, 0, -10, -10,
             -10, 0, 5, 10, 10, 5, 0, -10,
             -10, 5, 5, 10, 10, 5, 5, -10,
             -10, 0, 10, 10, 10, 10, 0, -10,
@@ -113,59 +113,68 @@
         ]
     };
 
+    var knightDirections = [
+        [-2, -1], [-2, 1],
+        [-1, -2], [-1, 2],
+        [1, -2], [1, 2],
+        [2, -1], [2, 1]
+    ];
+
+    var diagonalDirections = [
+        [-1, -1], [-1, 1],
+        [1, -1], [1, 1]
+    ];
+
+    var straightDirections = [
+        [-1, 0], [1, 0],
+        [0, -1], [0, 1]
+    ];
+
+    var queenDirections = [
+        [-1, -1], [-1, 1],
+        [1, -1], [1, 1],
+        [-1, 0], [1, 0],
+        [0, -1], [0, 1]
+    ];
+
     var state = createInitialState();
     var history = [];
     var positionHistory = {};
+
     var cells = [];
     var pieceNodes = [];
     var rankNodes = [];
     var fileNodes = [];
+    var baseSquareClasses = [];
     var targetFlags = [];
+
     var selected = -1;
     var cursor = -1;
     var legalTargets = [];
     var pendingPromotion = null;
+
     var boardBlack = false;
     var gameMode = "ai";
+
     var aiThinking = false;
     var aiTimer = 0;
     var searchDeadline = 0;
+
     var orientationTimer = 0;
     var resizeTimer = 0;
-    var resizeFrame = 0;
+
     var animationEnabled = true;
-    var lastRenderedResult = null;
+
     var modernLayout = false;
     var pointerEvents = false;
 
-    function detectFeatures() {
-        var css = window.CSS;
-        var supports = css && typeof css.supports === "function";
+    var currentLegalKey = "";
+    var currentLegalMoves = null;
+    var currentStatusKey = "";
+    var currentStatusResult = null;
+    var currentCheck = false;
 
-        modernLayout = !!(
-            supports &&
-            css.supports("display", "grid") &&
-            css.supports("aspect-ratio", "1 / 1")
-        );
-
-        pointerEvents =
-            typeof window.PointerEvent === "function";
-    }
-
-    function applyAppClass() {
-        var classes =
-            modernLayout
-                ? "app modern-layout"
-                : "app legacy-layout";
-
-        if (!animationEnabled) {
-            classes += " no-animations";
-        }
-
-        app.className = classes;
-    }
-
-    detectFeatures();
+    var promotionSelection = 0;
 
     try {
         if (
@@ -188,6 +197,58 @@
             animationEnabled = false;
         }
     } catch (e2) { }
+
+    function detectFeatures() {
+        var css = window.CSS;
+        var supports =
+            css &&
+            typeof css.supports === "function";
+
+        modernLayout = !!(
+            supports &&
+            css.supports(
+                "display",
+                "grid"
+            ) &&
+            css.supports(
+                "aspect-ratio",
+                "1 / 1"
+            )
+        );
+
+        pointerEvents =
+            typeof window.PointerEvent ===
+            "function";
+
+        if (modernLayout) {
+            app.className =
+                animationEnabled
+                    ? "app modern-layout"
+                    : "app modern-layout no-animations";
+        } else {
+            app.className =
+                animationEnabled
+                    ? "app legacy-layout"
+                    : "app legacy-layout no-animations";
+        }
+    }
+
+    function updateAppClass() {
+        var prefix =
+            modernLayout
+                ? "app modern-layout"
+                : "app legacy-layout";
+
+        if (!animationEnabled) {
+            prefix +=
+                " no-animations";
+        }
+
+        app.className =
+            prefix;
+    }
+
+    detectFeatures();
 
     function createInitialState() {
         return {
@@ -250,18 +311,24 @@
     }
 
     function inside(r, c) {
-        return r >= 0 &&
+        return (
+            r >= 0 &&
             r < 8 &&
             c >= 0 &&
-            c < 8;
+            c < 8
+        );
     }
 
     function colorOf(piece) {
-        if (!piece || piece === ".") {
+        if (
+            !piece ||
+            piece === "."
+        ) {
             return null;
         }
 
-        return piece === piece.toUpperCase()
+        return piece ===
+            piece.toUpperCase()
             ? "w"
             : "b";
     }
@@ -293,6 +360,36 @@
         );
     }
 
+    function getViewportWidth() {
+        if (
+            window.visualViewport &&
+            window.visualViewport.width
+        ) {
+            return window.visualViewport.width;
+        }
+
+        return (
+            window.innerWidth ||
+            document.documentElement.clientWidth ||
+            320
+        );
+    }
+
+    function getViewportHeight() {
+        if (
+            window.visualViewport &&
+            window.visualViewport.height
+        ) {
+            return window.visualViewport.height;
+        }
+
+        return (
+            window.innerHeight ||
+            document.documentElement.clientHeight ||
+            480
+        );
+    }
+
     function isDesktop() {
         return (
             !isTV() &&
@@ -302,7 +399,10 @@
     }
 
     function usePCStyle() {
-        return isTV() || isDesktop();
+        return (
+            isTV() ||
+            isDesktop()
+        );
     }
 
     function shouldAutoFlip() {
@@ -312,34 +412,30 @@
         );
     }
 
-    function getViewportWidth() {
-        return (
-            window.innerWidth ||
-            document.documentElement.clientWidth ||
-            320
-        );
-    }
-
-    function getViewportHeight() {
-        return (
-            window.innerHeight ||
-            document.documentElement.clientHeight ||
-            480
-        );
-    }
-
     function getBoardSize() {
-        var width = getViewportWidth();
-        var height = getViewportHeight();
+        var width =
+            getViewportWidth();
 
-        var horizontal =
+        var height =
+            getViewportHeight();
+
+        var horizontal;
+
+        if (
             width <= 360
-                ? 10
-                : width <= 600
-                    ? 14
-                    : width <= 900
-                        ? 20
-                        : 28;
+        ) {
+            horizontal = 10;
+        } else if (
+            width <= 600
+        ) {
+            horizontal = 14;
+        } else if (
+            width <= 900
+        ) {
+            horizontal = 20;
+        } else {
+            horizontal = 28;
+        }
 
         var availableWidth =
             Math.max(
@@ -395,13 +491,13 @@
 
     function resizeBoard() {
         resizeTimer = 0;
-        resizeFrame = 0;
 
         if (modernLayout) {
             boardScene.style.width = "";
             boardScene.style.height = "";
             status.style.width = "";
             gameActions.style.width = "";
+
             return;
         }
 
@@ -468,39 +564,15 @@
             );
         }
 
-        if (
-            resizeFrame &&
-            window.cancelAnimationFrame
-        ) {
-            window.cancelAnimationFrame(
-                resizeFrame
+        resizeTimer =
+            setTimeout(
+                resizeBoard,
+                35
             );
-
-            resizeFrame = 0;
-        }
-
-        if (
-            modernLayout &&
-            window.requestAnimationFrame
-        ) {
-            resizeFrame =
-                window.requestAnimationFrame(
-                    function () {
-                        resizeFrame = 0;
-                        resizeBoard();
-                    }
-                );
-        } else {
-            resizeTimer =
-                setTimeout(
-                    resizeBoard,
-                    35
-                );
-        }
     }
 
     function updateAnimationUI() {
-        applyAppClass();
+        updateAppClass();
 
         animationSwitch.className =
             animationEnabled
@@ -524,7 +596,10 @@
         } catch (e) { }
     }
 
-    function findKing(s, color) {
+    function findKing(
+        s,
+        color
+    ) {
         var target =
             color === "w"
                 ? "K"
@@ -608,17 +683,6 @@
                 ? "N"
                 : "n";
 
-        var knightDirections = [
-            [-2, -1],
-            [-2, 1],
-            [-1, -2],
-            [-1, 2],
-            [1, -2],
-            [1, 2],
-            [2, -1],
-            [2, 1]
-        ];
-
         for (
             i = 0;
             i < knightDirections.length;
@@ -635,7 +699,10 @@
             if (
                 inside(rr, cc) &&
                 s.board[
-                index(rr, cc)
+                index(
+                    rr,
+                    cc
+                )
                 ] === knight
             ) {
                 return true;
@@ -662,42 +729,33 @@
                 ? "K"
                 : "k";
 
-        var diagonal = [
-            [-1, -1],
-            [-1, 1],
-            [1, -1],
-            [1, 1]
-        ];
-
-        var straight = [
-            [-1, 0],
-            [1, 0],
-            [0, -1],
-            [0, 1]
-        ];
-
         for (
             i = 0;
-            i < diagonal.length;
+            i < diagonalDirections.length;
             i++
         ) {
             rr =
                 r +
-                diagonal[i][0];
+                diagonalDirections[i][0];
 
             cc =
                 c +
-                diagonal[i][1];
+                diagonalDirections[i][1];
 
             while (
                 inside(rr, cc)
             ) {
                 piece =
                     s.board[
-                    index(rr, cc)
+                    index(
+                        rr,
+                        cc
+                    )
                     ];
 
-                if (piece !== ".") {
+                if (
+                    piece !== "."
+                ) {
                     if (
                         piece === bishop ||
                         piece === queen
@@ -709,35 +767,40 @@
                 }
 
                 rr +=
-                    diagonal[i][0];
+                    diagonalDirections[i][0];
 
                 cc +=
-                    diagonal[i][1];
+                    diagonalDirections[i][1];
             }
         }
 
         for (
             i = 0;
-            i < straight.length;
+            i < straightDirections.length;
             i++
         ) {
             rr =
                 r +
-                straight[i][0];
+                straightDirections[i][0];
 
             cc =
                 c +
-                straight[i][1];
+                straightDirections[i][1];
 
             while (
                 inside(rr, cc)
             ) {
                 piece =
                     s.board[
-                    index(rr, cc)
+                    index(
+                        rr,
+                        cc
+                    )
                     ];
 
-                if (piece !== ".") {
+                if (
+                    piece !== "."
+                ) {
                     if (
                         piece === rook ||
                         piece === queen
@@ -749,10 +812,10 @@
                 }
 
                 rr +=
-                    straight[i][0];
+                    straightDirections[i][0];
 
                 cc +=
-                    straight[i][1];
+                    straightDirections[i][1];
             }
         }
 
@@ -773,7 +836,10 @@
                         cc === c
                     ) &&
                     s.board[
-                    index(rr, cc)
+                    index(
+                        rr,
+                        cc
+                    )
                     ] === king
                 ) {
                     return true;
@@ -839,36 +905,28 @@
             list,
             from,
             to,
-            {
-                promotion: "q"
-            }
+            { promotion: "q" }
         );
 
         addMove(
             list,
             from,
             to,
-            {
-                promotion: "r"
-            }
+            { promotion: "r" }
         );
 
         addMove(
             list,
             from,
             to,
-            {
-                promotion: "b"
-            }
+            { promotion: "b" }
         );
 
         addMove(
             list,
             from,
             to,
-            {
-                promotion: "n"
-            }
+            { promotion: "n" }
         );
     }
 
@@ -898,13 +956,17 @@
 
             if (
                 piece === "." ||
-                colorOf(piece) !== color
+                colorOf(
+                    piece
+                ) !== color
             ) {
                 continue;
             }
 
             type =
-                typeOf(piece);
+                typeOf(
+                    piece
+                );
 
             r =
                 row(i);
@@ -912,7 +974,9 @@
             c =
                 col(i);
 
-            if (type === "p") {
+            if (
+                type === "p"
+            ) {
                 var direction =
                     color === "w"
                         ? -1
@@ -932,7 +996,10 @@
                     r + direction;
 
                 if (
-                    inside(rr, c) &&
+                    inside(
+                        rr,
+                        c
+                    ) &&
                     b[
                     index(
                         rr,
@@ -941,7 +1008,8 @@
                     ] === "."
                 ) {
                     if (
-                        rr === promotionRow
+                        rr ===
+                        promotionRow
                     ) {
                         addPromotions(
                             moves,
@@ -1022,7 +1090,8 @@
                         opposite(color)
                     ) {
                         if (
-                            rr === promotionRow
+                            rr ===
+                            promotionRow
                         ) {
                             addPromotions(
                                 moves,
@@ -1066,18 +1135,9 @@
                 }
             }
 
-            if (type === "n") {
-                var knightDirections = [
-                    [-2, -1],
-                    [-2, 1],
-                    [-1, -2],
-                    [-1, 2],
-                    [1, -2],
-                    [1, 2],
-                    [2, -1],
-                    [2, 1]
-                ];
-
+            if (
+                type === "n"
+            ) {
                 var ni;
 
                 for (
@@ -1094,7 +1154,10 @@
                         knightDirections[ni][1];
 
                     if (
-                        !inside(rr, cc)
+                        !inside(
+                            rr,
+                            cc
+                        )
                     ) {
                         continue;
                     }
@@ -1109,7 +1172,9 @@
 
                     if (
                         target === "." ||
-                        colorOf(target) !== color
+                        colorOf(
+                            target
+                        ) !== color
                     ) {
                         addMove(
                             moves,
@@ -1128,34 +1193,24 @@
                 type === "r" ||
                 type === "q"
             ) {
-                var directions = [];
+                var directions;
+
+                if (
+                    type === "b"
+                ) {
+                    directions =
+                        diagonalDirections;
+                } else if (
+                    type === "r"
+                ) {
+                    directions =
+                        straightDirections;
+                } else {
+                    directions =
+                        queenDirections;
+                }
+
                 var di;
-
-                if (
-                    type === "b" ||
-                    type === "q"
-                ) {
-                    directions =
-                        directions.concat([
-                            [-1, -1],
-                            [-1, 1],
-                            [1, -1],
-                            [1, 1]
-                        ]);
-                }
-
-                if (
-                    type === "r" ||
-                    type === "q"
-                ) {
-                    directions =
-                        directions.concat([
-                            [-1, 0],
-                            [1, 0],
-                            [0, -1],
-                            [0, 1]
-                        ]);
-                }
 
                 for (
                     di = 0;
@@ -1171,7 +1226,10 @@
                         directions[di][1];
 
                     while (
-                        inside(rr, cc)
+                        inside(
+                            rr,
+                            cc
+                        )
                     ) {
                         target =
                             b[
@@ -1194,8 +1252,9 @@
                             );
                         } else {
                             if (
-                                colorOf(target) !==
-                                color
+                                colorOf(
+                                    target
+                                ) !== color
                             ) {
                                 addMove(
                                     moves,
@@ -1219,7 +1278,9 @@
                 }
             }
 
-            if (type === "k") {
+            if (
+                type === "k"
+            ) {
                 for (
                     rr = r - 1;
                     rr <= r + 1;
@@ -1231,7 +1292,10 @@
                         cc++
                     ) {
                         if (
-                            !inside(rr, cc) ||
+                            !inside(
+                                rr,
+                                cc
+                            ) ||
                             (
                                 rr === r &&
                                 cc === c
@@ -1250,7 +1314,9 @@
 
                         if (
                             target === "." ||
-                            colorOf(target) !== color
+                            colorOf(
+                                target
+                            ) !== color
                         ) {
                             addMove(
                                 moves,
@@ -1267,7 +1333,10 @@
                 if (
                     color === "w" &&
                     i === 60 &&
-                    !inCheck(s, "w")
+                    !inCheck(
+                        s,
+                        "w"
+                    )
                 ) {
                     if (
                         s.castling.K &&
@@ -1326,7 +1395,10 @@
                 if (
                     color === "b" &&
                     i === 4 &&
-                    !inCheck(s, "b")
+                    !inCheck(
+                        s,
+                        "b"
+                    )
                 ) {
                     if (
                         s.castling.k &&
@@ -1405,7 +1477,9 @@
             ];
 
         var color =
-            colorOf(piece);
+            colorOf(
+                piece
+            );
 
         next.board[
             move.from
@@ -1472,12 +1546,16 @@
             next.board[3] = "r";
         }
 
-        if (piece === "K") {
+        if (
+            piece === "K"
+        ) {
             next.castling.K = false;
             next.castling.Q = false;
         }
 
-        if (piece === "k") {
+        if (
+            piece === "k"
+        ) {
             next.castling.k = false;
             next.castling.q = false;
         }
@@ -1515,7 +1593,8 @@
         if (
             typeOf(piece) === "p" &&
             Math.abs(
-                move.to - move.from
+                move.to -
+                move.from
             ) === 16
         ) {
             next.ep =
@@ -1588,7 +1667,9 @@
         return result;
     }
 
-    function positionKey(s) {
+    function positionKey(
+        s
+    ) {
         var castling =
             (
                 s.castling.K
@@ -1622,14 +1703,259 @@
         );
     }
 
-    function recordPosition(s) {
+    function invalidateCurrentCache() {
+        currentLegalKey = "";
+        currentLegalMoves = null;
+        currentStatusKey = "";
+        currentStatusResult = null;
+        currentCheck = false;
+    }
+
+    function getCurrentLegalMoves() {
         var key =
-            positionKey(s);
+            positionKey(
+                state
+            );
+
+        if (
+            currentLegalKey === key &&
+            currentLegalMoves
+        ) {
+            return currentLegalMoves;
+        }
+
+        currentLegalKey =
+            key;
+
+        currentLegalMoves =
+            legalMoves(
+                state,
+                state.turn
+            );
+
+        currentCheck =
+            inCheck(
+                state,
+                state.turn
+            );
+
+        currentStatusKey =
+            "";
+
+        currentStatusResult =
+            null;
+
+        return currentLegalMoves;
+    }
+
+    function insufficientMaterial(
+        s
+    ) {
+        var minorCount = 0;
+        var bishopCount = 0;
+        var bishopA = -1;
+        var bishopB = -1;
+
+        var i;
+        var piece;
+        var type;
+
+        for (
+            i = 0;
+            i < 64;
+            i++
+        ) {
+            piece =
+                s.board[i];
+
+            if (
+                piece === "."
+            ) {
+                continue;
+            }
+
+            type =
+                typeOf(
+                    piece
+                );
+
+            if (
+                type === "k"
+            ) {
+                continue;
+            }
+
+            if (
+                type === "p" ||
+                type === "q" ||
+                type === "r"
+            ) {
+                return false;
+            }
+
+            minorCount++;
+
+            if (
+                type === "b"
+            ) {
+                bishopCount++;
+
+                if (
+                    bishopA < 0
+                ) {
+                    bishopA =
+                        i;
+                } else {
+                    bishopB =
+                        i;
+                }
+            }
+        }
+
+        if (
+            minorCount <= 1
+        ) {
+            return true;
+        }
+
+        if (
+            minorCount === 2 &&
+            bishopCount === 2
+        ) {
+            return (
+                (
+                    row(
+                        bishopA
+                    ) +
+                    col(
+                        bishopA
+                    )
+                ) % 2
+            ) === (
+                    (
+                        row(
+                            bishopB
+                        ) +
+                        col(
+                            bishopB
+                        )
+                    ) % 2
+                );
+        }
+
+        return false;
+    }
+
+    function getCurrentStatus() {
+        var key =
+            positionKey(
+                state
+            );
+
+        if (
+            currentStatusKey === key &&
+            currentStatusResult
+        ) {
+            return currentStatusResult;
+        }
+
+        var legal =
+            getCurrentLegalMoves();
+
+        var result;
+
+        if (
+            !legal.length
+        ) {
+            if (
+                currentCheck
+            ) {
+                result = {
+                    over: true,
+                    result:
+                        state.turn === "w"
+                            ? "0-1"
+                            : "1-0",
+                    text:
+                        state.turn === "w"
+                            ? "Мат — победили чёрные"
+                            : "Мат — победили белые"
+                };
+            } else {
+                result = {
+                    over: true,
+                    result: "1/2-1/2",
+                    text: "Пат — ничья"
+                };
+            }
+        } else if (
+            insufficientMaterial(
+                state
+            )
+        ) {
+            result = {
+                over: true,
+                result: "1/2-1/2",
+                text:
+                    "Ничья — недостаточно материала"
+            };
+        } else if (
+            state.halfmove >= 100
+        ) {
+            result = {
+                over: true,
+                result: "1/2-1/2",
+                text:
+                    "Ничья по правилу 50 ходов"
+            };
+        } else if (
+            positionHistory[key] &&
+            positionHistory[key] >= 3
+        ) {
+            result = {
+                over: true,
+                result: "1/2-1/2",
+                text:
+                    "Ничья — троекратное повторение"
+            };
+        } else {
+            result = {
+                over: false,
+                result: null,
+                text:
+                    state.turn === "w"
+                        ? "Ход белых"
+                        : "Ход чёрных"
+            };
+        }
+
+        currentStatusKey =
+            key;
+
+        currentStatusResult =
+            result;
+
+        return result;
+    }
+
+    function recordPosition(
+        s
+    ) {
+        var key =
+            positionKey(
+                s
+            );
 
         positionHistory[key] =
             positionHistory[key]
                 ? positionHistory[key] + 1
                 : 1;
+
+        if (
+            s === state
+        ) {
+            invalidateCurrentCache();
+        }
     }
 
     function rebuildPositionHistory() {
@@ -1652,195 +1978,11 @@
         );
     }
 
-    function insufficientMaterial(s) {
-        var pieces = [];
-        var bishops = [];
-        var i;
-        var piece;
-
-        for (
-            i = 0;
-            i < 64;
-            i++
-        ) {
-            piece =
-                s.board[i];
-
-            if (
-                piece === "." ||
-                typeOf(piece) === "k"
-            ) {
-                continue;
-            }
-
-            if (
-                typeOf(piece) === "p" ||
-                typeOf(piece) === "q" ||
-                typeOf(piece) === "r"
-            ) {
-                return false;
-            }
-
-            pieces.push(
-                piece
-            );
-
-            if (
-                typeOf(piece) === "b"
-            ) {
-                bishops.push(
-                    i
-                );
-            }
-        }
-
-        if (
-            pieces.length === 0
-        ) {
-            return true;
-        }
-
-        if (
-            pieces.length === 1 &&
-            (
-                typeOf(
-                    pieces[0]
-                ) === "n" ||
-                typeOf(
-                    pieces[0]
-                ) === "b"
-            )
-        ) {
-            return true;
-        }
-
-        if (
-            pieces.length === 2 &&
-            typeOf(
-                pieces[0]
-            ) === "b" &&
-            typeOf(
-                pieces[1]
-            ) === "b"
-        ) {
-            return (
-                (
-                    row(
-                        bishops[0]
-                    ) +
-                    col(
-                        bishops[0]
-                    )
-                ) % 2
-            ) === (
-                    (
-                        row(
-                            bishops[1]
-                        ) +
-                        col(
-                            bishops[1]
-                        )
-                    ) % 2
-                );
-        }
-
-        return false;
-    }
-
-    function gameStatus(
-        s,
-        searchMode
+    function evaluate(
+        s
     ) {
-        var legal =
-            legalMoves(
-                s,
-                s.turn
-            );
-
-        if (
-            !legal.length
-        ) {
-            if (
-                inCheck(
-                    s,
-                    s.turn
-                )
-            ) {
-                return {
-                    over: true,
-                    result:
-                        s.turn === "w"
-                            ? "0-1"
-                            : "1-0",
-                    text:
-                        s.turn === "w"
-                            ? "Мат — победили чёрные"
-                            : "Мат — победили белые"
-                };
-            }
-
-            return {
-                over: true,
-                result: "1/2-1/2",
-                text: "Пат — ничья"
-            };
-        }
-
-        if (
-            !searchMode &&
-            insufficientMaterial(s)
-        ) {
-            return {
-                over: true,
-                result: "1/2-1/2",
-                text:
-                    "Ничья — недостаточно материала"
-            };
-        }
-
-        if (
-            !searchMode &&
-            s.halfmove >= 100
-        ) {
-            return {
-                over: true,
-                result: "1/2-1/2",
-                text:
-                    "Ничья по правилу 50 ходов"
-            };
-        }
-
-        if (
-            !searchMode
-        ) {
-            var key =
-                positionKey(s);
-
-            if (
-                positionHistory[key] &&
-                positionHistory[key] >= 3
-            ) {
-                return {
-                    over: true,
-                    result: "1/2-1/2",
-                    text:
-                        "Ничья — троекратное повторение"
-                };
-            }
-        }
-
-        return {
-            over: false,
-            result: null,
-            text:
-                s.turn === "w"
-                    ? "Ход белых"
-                    : "Ход чёрных"
-        };
-    }
-
-    function evaluate(s) {
         var score = 0;
+
         var i;
         var piece;
         var color;
@@ -1862,10 +2004,14 @@
             }
 
             color =
-                colorOf(piece);
+                colorOf(
+                    piece
+                );
 
             type =
-                typeOf(piece);
+                typeOf(
+                    piece
+                );
 
             tableIndex =
                 color === "w"
@@ -1929,8 +2075,7 @@
                 typeOf(
                     captured
                 )
-                ] *
-                10 -
+                ] * 10 -
                 VALUE[
                 typeOf(
                     moving
@@ -2010,9 +2155,11 @@
                     s.turn
                 )
             ) {
-                return s.turn === "w"
-                    ? -1000000 - depth
-                    : 1000000 + depth;
+                return (
+                    s.turn === "w"
+                        ? -1000000 - depth
+                        : 1000000 + depth
+                );
             }
 
             return 0;
@@ -2099,8 +2246,11 @@
         return best;
     }
 
-    function aiConfig(level) {
-        var oldDevice = false;
+    function aiConfig(
+        level
+    ) {
+        var oldDevice =
+            false;
 
         try {
             oldDevice =
@@ -2184,7 +2334,9 @@
         }
 
         var config =
-            aiConfig(level);
+            aiConfig(
+                level
+            );
 
         var ordered =
             orderMoves(
@@ -2278,17 +2430,20 @@
         var r;
         var c;
         var sq;
+
         var cell;
         var pieceNode;
         var rankNode;
         var fileNode;
 
-        board.innerHTML = "";
+        board.innerHTML =
+            "";
 
         cells = [];
         pieceNodes = [];
         rankNodes = [];
         fileNodes = [];
+        baseSquareClasses = [];
         targetFlags = [];
 
         for (
@@ -2298,6 +2453,21 @@
         ) {
             targetFlags[sq] =
                 false;
+
+            baseSquareClasses[sq] =
+                "square " +
+                (
+                    (
+                        Math.floor(
+                            sq / 8
+                        ) +
+                        (
+                            sq % 8
+                        )
+                    ) % 2 === 0
+                        ? "light"
+                        : "dark"
+                );
         }
 
         for (
@@ -2322,14 +2492,9 @@
                     );
 
                 cell.className =
-                    "square " +
-                    (
-                        (
-                            r + c
-                        ) % 2 === 0
-                            ? "light"
-                            : "dark"
-                    );
+                    baseSquareClasses[
+                    sq
+                    ];
 
                 cell.setAttribute(
                     "data-square",
@@ -2340,11 +2505,15 @@
                     !modernLayout
                 ) {
                     cell.style.left =
-                        (c * 12.5) +
+                        (
+                            c * 12.5
+                        ) +
                         "%";
 
                     cell.style.top =
-                        (r * 12.5) +
+                        (
+                            r * 12.5
+                        ) +
                         "%";
 
                     cell.style.width =
@@ -2501,7 +2670,8 @@
                 orientationTimer
             );
 
-            orientationTimer = 0;
+            orientationTimer =
+                0;
         }
 
         boardBlack =
@@ -2539,11 +2709,8 @@
         boardBlack =
             black;
 
-        var base =
-            "board-scene two-mode ";
-
         boardScene.className =
-            base +
+            "board-scene two-mode " +
             (
                 forward
                     ? "orientation-forward"
@@ -2564,7 +2731,9 @@
             setTimeout(
                 function () {
                     updateSceneClass();
-                    orientationTimer = 0;
+
+                    orientationTimer =
+                        0;
                 },
                 475
             );
@@ -2579,10 +2748,7 @@
 
         if (
             !result.over &&
-            inCheck(
-                state,
-                state.turn
-            )
+            currentCheck
         ) {
             text +=
                 " — шах";
@@ -2603,39 +2769,33 @@
                 animationEnabled
                 ? "status pop"
                 : "status";
-
-        lastRenderedResult =
-            result;
     }
 
     function render(
         animateMove
     ) {
         var result =
-            gameStatus(
-                state,
-                false
-            );
+            getCurrentStatus();
 
         var kingSquare =
-            result.over
-                ? -1
-                : findKing(
+            currentCheck &&
+                !result.over
+                ? findKing(
                     state,
                     state.turn
-                );
+                )
+                : -1;
+
+        var showCursor =
+            usePCStyle() &&
+            cursor >= 0;
 
         var i;
         var piece;
         var pColor;
         var pType;
         var pieceNode;
-        var isTarget;
         var cellClass;
-
-        var showCursor =
-            usePCStyle() &&
-            cursor >= 0;
 
         for (
             i = 0;
@@ -2646,19 +2806,7 @@
                 state.board[i];
 
             cellClass =
-                "square " +
-                (
-                    (
-                        Math.floor(
-                            i / 8
-                        ) +
-                        (
-                            i % 8
-                        )
-                    ) % 2 === 0
-                        ? "light"
-                        : "dark"
-                );
+                baseSquareClasses[i];
 
             if (
                 selected === i
@@ -2688,20 +2836,14 @@
 
             if (
                 kingSquare === i &&
-                inCheck(
-                    state,
-                    state.turn
-                )
+                currentCheck
             ) {
                 cellClass +=
                     " check";
             }
 
-            isTarget =
-                targetFlags[i];
-
             if (
-                isTarget
+                targetFlags[i]
             ) {
                 cellClass +=
                     piece === "."
@@ -2785,8 +2927,10 @@
         selected = -1;
         legalTargets = [];
 
+        var i;
+
         for (
-            var i = 0;
+            i = 0;
             i < 64;
             i++
         ) {
@@ -2815,6 +2959,8 @@
         history = [];
 
         positionHistory = {};
+
+        invalidateCurrentCache();
 
         clearSelection();
 
@@ -2874,6 +3020,8 @@
                 history.pop();
         }
 
+        invalidateCurrentCache();
+
         clearSelection();
 
         cursor =
@@ -2910,6 +3058,8 @@
                 state,
                 move
             );
+
+        invalidateCurrentCache();
 
         recordPosition(
             state
@@ -2976,7 +3126,8 @@
                             level
                         );
 
-                    aiThinking = false;
+                    aiThinking =
+                        false;
 
                     if (
                         move
@@ -2999,10 +3150,7 @@
     ) {
         if (
             aiThinking ||
-            gameStatus(
-                state,
-                false
-            ).over
+            getCurrentStatus().over
         ) {
             return;
         }
@@ -3025,8 +3173,9 @@
             state.board[square];
 
         var moves;
-        var candidates = [];
         var i;
+        var candidate = null;
+        var promotionCandidate = false;
 
         if (
             selected === -1
@@ -3044,10 +3193,7 @@
                     square;
 
                 moves =
-                    legalMoves(
-                        state,
-                        state.turn
-                    );
+                    getCurrentLegalMoves();
 
                 setLegalTargets(
                     moves,
@@ -3074,10 +3220,7 @@
         }
 
         moves =
-            legalMoves(
-                state,
-                state.turn
-            );
+            getCurrentLegalMoves();
 
         for (
             i = 0;
@@ -3088,14 +3231,22 @@
                 moves[i].from === selected &&
                 moves[i].to === square
             ) {
-                candidates.push(
-                    moves[i]
-                );
+                candidate =
+                    moves[i];
+
+                if (
+                    moves[i].promotion
+                ) {
+                    promotionCandidate =
+                        true;
+                }
+
+                break;
             }
         }
 
         if (
-            !candidates.length
+            !candidate
         ) {
             if (
                 piece !== "." &&
@@ -3123,11 +3274,15 @@
         }
 
         if (
-            candidates.length > 1
+            promotionCandidate
         ) {
             pendingPromotion = {
-                moves: candidates
+                from: selected,
+                to: square,
+                color: state.turn
             };
+
+            promotionSelection = 0;
 
             openPromotion();
 
@@ -3135,7 +3290,7 @@
         }
 
         executeMove(
-            candidates[0]
+            candidate
         );
     }
 
@@ -3175,7 +3330,49 @@
             "overlay hidden";
     }
 
+    function updatePromotionButtons() {
+        var buttons =
+            promotionOverlay.getElementsByTagName(
+                "button"
+            );
+
+        var types = [
+            "q",
+            "r",
+            "b",
+            "n"
+        ];
+
+        var color =
+            pendingPromotion &&
+                pendingPromotion.color === "b"
+                ? "b"
+                : "w";
+
+        var i;
+
+        for (
+            i = 0;
+            i < 4;
+            i++
+        ) {
+            buttons[i].textContent =
+                PIECES[
+                color
+                ][
+                types[i]
+                ];
+
+            buttons[i].setAttribute(
+                "data-promotion",
+                types[i]
+            );
+        }
+    }
+
     function openPromotion() {
+        updatePromotionButtons();
+
         promotionOverlay.className =
             "overlay";
     }
@@ -3186,6 +3383,44 @@
 
         pendingPromotion =
             null;
+
+        promotionSelection = 0;
+    }
+
+    function completePromotion(
+        type
+    ) {
+        if (
+            !pendingPromotion
+        ) {
+            return;
+        }
+
+        var moves =
+            getCurrentLegalMoves();
+
+        var i;
+
+        for (
+            i = 0;
+            i < moves.length;
+            i++
+        ) {
+            if (
+                moves[i].from ===
+                pendingPromotion.from &&
+                moves[i].to ===
+                pendingPromotion.to &&
+                moves[i].promotion ===
+                type
+            ) {
+                executeMove(
+                    moves[i]
+                );
+
+                return;
+            }
+        }
     }
 
     function findBoardTarget(
@@ -3202,8 +3437,10 @@
                 target.parentNode;
         }
 
-        return target &&
+        return (
+            target &&
             target !== board
+        )
             ? target
             : null;
     }
@@ -3230,6 +3467,13 @@
                 10
             )
         );
+
+        if (
+            event.preventDefault &&
+            pointerEvents
+        ) {
+            event.preventDefault();
+        }
     }
 
     if (
@@ -3237,7 +3481,7 @@
         board.addEventListener
     ) {
         board.addEventListener(
-            "pointerdown",
+            "pointerup",
             handleBoardInteraction,
             false
         );
@@ -3309,7 +3553,9 @@
                 promotionOverlay
             ) {
                 clearSelection();
+
                 closePromotion();
+
                 render(false);
             }
         };
@@ -3337,40 +3583,11 @@
                     return;
                 }
 
-                var wanted =
+                completePromotion(
                     this.getAttribute(
                         "data-promotion"
-                    );
-
-                var chosen =
-                    null;
-
-                var i;
-
-                for (
-                    i = 0;
-                    i <
-                    pendingPromotion.moves.length;
-                    i++
-                ) {
-                    if (
-                        pendingPromotion.moves[i].promotion ===
-                        wanted
-                    ) {
-                        chosen =
-                            pendingPromotion.moves[i];
-
-                        break;
-                    }
-                }
-
-                if (
-                    chosen
-                ) {
-                    executeMove(
-                        chosen
-                    );
-                }
+                    )
+                );
             };
     }
 
@@ -3431,6 +3648,87 @@
             var key =
                 event.keyCode ||
                 event.which;
+
+            if (
+                pendingPromotion
+            ) {
+                if (
+                    key === 27
+                ) {
+                    clearSelection();
+                    closePromotion();
+                    render(false);
+                    return;
+                }
+
+                if (
+                    key === 37 ||
+                    key === 38
+                ) {
+                    promotionSelection =
+                        (
+                            promotionSelection +
+                            3
+                        ) % 4;
+
+                    updatePromotionButtons();
+
+                    if (
+                        event.preventDefault
+                    ) {
+                        event.preventDefault();
+                    }
+
+                    return;
+                }
+
+                if (
+                    key === 39 ||
+                    key === 40
+                ) {
+                    promotionSelection =
+                        (
+                            promotionSelection +
+                            1
+                        ) % 4;
+
+                    updatePromotionButtons();
+
+                    if (
+                        event.preventDefault
+                    ) {
+                        event.preventDefault();
+                    }
+
+                    return;
+                }
+
+                if (
+                    key === 13 ||
+                    key === 32
+                ) {
+                    var promotionTypes = [
+                        "q",
+                        "r",
+                        "b",
+                        "n"
+                    ];
+
+                    completePromotion(
+                        promotionTypes[
+                        promotionSelection
+                        ]
+                    );
+
+                    if (
+                        event.preventDefault
+                    ) {
+                        event.preventDefault();
+                    }
+
+                    return;
+                }
+            }
 
             if (
                 key === 27
@@ -3546,6 +3844,19 @@
 
     window.onorientationchange =
         handleResize;
+
+    if (
+        window.visualViewport &&
+        window.visualViewport.addEventListener
+    ) {
+        try {
+            window.visualViewport.addEventListener(
+                "resize",
+                handleResize,
+                false
+            );
+        } catch (e) { }
+    }
 
     buildBoard();
     updateAnimationUI();
